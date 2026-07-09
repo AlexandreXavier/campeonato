@@ -96,15 +96,15 @@ function stableNumber(value: string) {
 }
 
 const FIGUEIRA_CAMPO_1_COURSE: Array<[number, number]> = [
-  [-8.879, 40.122],
-  [-8.879, 40.154],
-  [-8.872, 40.158],
-  [-8.883, 40.151],
-  [-8.888, 40.123],
-  [-8.872, 40.123],
-  [-8.879, 40.154],
-  [-8.872, 40.158],
-  [-8.861, 40.119],
+  [-8.926, 40.121],
+  [-8.926, 40.156],
+  [-8.919, 40.16],
+  [-8.93, 40.153],
+  [-8.935, 40.122],
+  [-8.919, 40.122],
+  [-8.926, 40.156],
+  [-8.919, 40.16],
+  [-8.908, 40.118],
 ];
 
 function interpolateCourse(progress: number, offset: number) {
@@ -674,6 +674,12 @@ async function upsertTrackingDemo(
           label: item.entry.boatName,
           classCode: item.entry.classCode,
           sailNumber: item.entry.sailNumber,
+          certificateRef: item.certificate?.refNo,
+          certificateClassName: item.certificate?.className,
+          gph: item.certificate?.gph,
+          totInshore: item.certificate?.totInshore,
+          totOffshore: item.certificate?.totOffshore,
+          aphT: item.certificate?.aphT,
           lng: point.lng,
           lat: point.lat,
           sog: item.averageSpeed,

@@ -147,6 +147,12 @@ export type TrackingPosition = {
   label: string;
   classCode: string;
   sailNumber?: string | null;
+  certificateRef?: string | null;
+  certificateClassName?: string | null;
+  gph?: number | null;
+  totInshore?: number | null;
+  totOffshore?: number | null;
+  aphT?: number | null;
   lng: number;
   lat: number;
   sog?: number | null;

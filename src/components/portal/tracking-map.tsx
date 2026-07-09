@@ -7,7 +7,7 @@ import maplibregl, {
 } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { TrackingDemo, TrackingPosition } from "@/lib/portal-types";
+import type { Entry, TrackingDemo, TrackingPosition } from "@/lib/portal-types";
 import {
   defaultMapStyleUrl,
   mapboxAccessToken,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 type TrackingMapProps = {
   demo: TrackingDemo | null;
+  entries?: Entry[];
   immersive?: boolean;
   styleUrl?: string | null;
 };
@@ -27,25 +28,27 @@ type CourseMark = {
   lat: number;
 };
 
+type EntryLookup = Map<string, Entry>;
+
 const campo1Course: Array<[number, number]> = [
-  [-8.879, 40.122],
-  [-8.879, 40.154],
-  [-8.872, 40.158],
-  [-8.883, 40.151],
-  [-8.888, 40.123],
-  [-8.872, 40.123],
-  [-8.879, 40.154],
-  [-8.872, 40.158],
-  [-8.861, 40.119],
+  [-8.926, 40.121],
+  [-8.926, 40.156],
+  [-8.919, 40.16],
+  [-8.93, 40.153],
+  [-8.935, 40.122],
+  [-8.919, 40.122],
+  [-8.926, 40.156],
+  [-8.919, 40.16],
+  [-8.908, 40.118],
 ];
 
 const campo1Marks: CourseMark[] = [
-  { kind: "start", label: "Saída", lng: -8.879, lat: 40.122 },
-  { kind: "mark", label: "1", lng: -8.879, lat: 40.154 },
-  { kind: "mark", label: "2", lng: -8.872, lat: 40.158 },
-  { kind: "mark", label: "3S", lng: -8.888, lat: 40.123 },
-  { kind: "mark", label: "3P", lng: -8.872, lat: 40.123 },
-  { kind: "finish", label: "Chegada", lng: -8.861, lat: 40.119 },
+  { kind: "start", label: "Saída", lng: -8.926, lat: 40.121 },
+  { kind: "mark", label: "1", lng: -8.926, lat: 40.156 },
+  { kind: "mark", label: "2", lng: -8.919, lat: 40.16 },
+  { kind: "mark", label: "3S", lng: -8.935, lat: 40.122 },
+  { kind: "mark", label: "3P", lng: -8.919, lat: 40.122 },
+  { kind: "finish", label: "Chegada", lng: -8.908, lat: 40.118 },
 ];
 
 const fallbackRasterStyle: StyleSpecification = {
@@ -199,6 +202,40 @@ function transformMapboxRequest(url: string): RequestParameters | undefined {
   return tokenizedUrl === url ? undefined : { url: tokenizedUrl };
 }
 
+function normalizeLookupKey(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+}
+
+function addEntryLookupKey(lookup: EntryLookup, key: string | null | undefined, entry: Entry) {
+  const normalized = normalizeLookupKey(key);
+  if (normalized && !lookup.has(normalized)) {
+    lookup.set(normalized, entry);
+  }
+}
+
+function buildEntryLookup(entries: Entry[] = []) {
+  const lookup: EntryLookup = new Map();
+  entries.forEach((entry) => {
+    addEntryLookupKey(lookup, entry.id, entry);
+    addEntryLookupKey(lookup, entry.boatName, entry);
+    addEntryLookupKey(lookup, entry.sailNumber, entry);
+  });
+  return lookup;
+}
+
+function findEntryForPosition(position: TrackingPosition, lookup: EntryLookup) {
+  return (
+    lookup.get(normalizeLookupKey(position.entryId)) ??
+    lookup.get(normalizeLookupKey(position.sailNumber)) ??
+    lookup.get(normalizeLookupKey(position.label)) ??
+    null
+  );
+}
+
+function formatRating(value?: number | null, digits = 3) {
+  return typeof value === "number" ? value.toFixed(digits) : "n/d";
+}
+
 function fitMapToCourse(map: maplibregl.Map, positions: TrackingPosition[]) {
   const bounds = new maplibregl.LngLatBounds();
   campo1Course.forEach(([lng, lat]) => bounds.extend([lng, lat]));
@@ -335,7 +372,7 @@ function addTrackingLayers(map: maplibregl.Map, positions: TrackingPosition[]) {
   });
 }
 
-export function TrackingMap({ demo, immersive = false, styleUrl }: TrackingMapProps) {
+export function TrackingMap({ demo, entries, immersive = false, styleUrl }: TrackingMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -351,6 +388,7 @@ export function TrackingMap({ demo, immersive = false, styleUrl }: TrackingMapPr
     () => positionsToFeatureCollection(currentPositions),
     [currentPositions],
   );
+  const entryLookup = useMemo(() => buildEntryLookup(entries), [entries]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -358,7 +396,7 @@ export function TrackingMap({ demo, immersive = false, styleUrl }: TrackingMapPr
     const map = new maplibregl.Map({
       attributionControl: false,
       bearing: -14,
-      center: [-8.875, 40.139],
+      center: [-8.923, 40.139],
       container: containerRef.current,
       pitch: 36,
       style: mapStyle,
@@ -464,6 +502,9 @@ export function TrackingMap({ demo, immersive = false, styleUrl }: TrackingMapPr
         <span className="rounded-full bg-sky-950/88 px-3 py-1 text-xs font-semibold text-white shadow-lg">
           T+{Math.round(currentFrame?.second ?? 0)}s · {currentPositions.length} barcos
         </span>
+        <span className="rounded-full bg-white/92 px-3 py-1 text-xs font-semibold text-slate-950 shadow-lg">
+          Barcos Convex · certificados ORC
+        </span>
         {usingFallbackStyle ? (
           <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-slate-950 shadow-lg">
             Mapa base alternativo
@@ -471,21 +512,42 @@ export function TrackingMap({ demo, immersive = false, styleUrl }: TrackingMapPr
         ) : null}
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-10 grid max-h-56 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:bottom-auto lg:left-auto lg:right-6 lg:top-20 lg:max-h-[calc(100%-6rem)] lg:w-[340px] lg:grid-cols-1">
-        {currentPositions.map((position) => (
-          <div
-            key={`${position.label}-${position.sailNumber}`}
-            className="rounded-lg bg-white/94 px-3 py-2 text-xs shadow-xl backdrop-blur"
-          >
-            <div className="flex items-center justify-between gap-3 font-semibold text-slate-950">
-              <span className="truncate">{position.label}</span>
-              <span className="shrink-0 font-mono">{position.sailNumber}</span>
+        {currentPositions.map((position) => {
+          const entry = findEntryForPosition(position, entryLookup);
+          const certificateRef = position.certificateRef ?? entry?.certificateRef ?? null;
+          const certificateClassName =
+            position.certificateClassName ?? entry?.certificateClassName ?? null;
+          const gph = position.gph ?? entry?.gph ?? null;
+          const totInshore = position.totInshore ?? entry?.totInshore ?? null;
+          const totOffshore = position.totOffshore ?? entry?.totOffshore ?? null;
+
+          return (
+            <div
+              key={`${position.label}-${position.sailNumber}`}
+              className="rounded-lg bg-white/94 px-3 py-2 text-xs shadow-xl backdrop-blur"
+            >
+              <div className="flex items-center justify-between gap-3 font-semibold text-slate-950">
+                <span className="truncate">{entry?.boatName ?? position.label}</span>
+                <span className="shrink-0 font-mono">{entry?.sailNumber ?? position.sailNumber}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-3 text-slate-600">
+                <span>{(entry?.classCode ?? position.classCode).replace("_", " ")}</span>
+                <span className="font-mono">{position.sog?.toFixed(1) ?? "0.0"} nós</span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-200 pt-2 text-[11px] text-slate-600">
+                <span className="truncate font-mono text-slate-950">
+                  {certificateRef ? `Cert. ${certificateRef}` : "Cert. n/d"}
+                </span>
+                <span className="truncate text-right">{certificateClassName ?? "ORC"}</span>
+                <span>GPH {formatRating(gph, 1)}</span>
+                <span className="text-right">ToT {formatRating(totInshore)}</span>
+                <span className="col-span-2 text-right text-slate-500">
+                  Offshore {formatRating(totOffshore)}
+                </span>
+              </div>
             </div>
-            <div className="mt-1 flex items-center justify-between gap-3 text-slate-600">
-              <span>{position.classCode.replace("_", " ")}</span>
-              <span className="font-mono">{position.sog?.toFixed(1) ?? "0.0"} nós</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

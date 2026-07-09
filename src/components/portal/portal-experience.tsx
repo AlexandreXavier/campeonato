@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ import { portalApi } from "@/lib/convex-api";
 import { defaultPortalData } from "@/lib/demo-data";
 import type {
   Entry,
+  MediaItem,
   NewsPost,
   Notice,
   PortalData,
@@ -83,6 +84,38 @@ const sectionRouteHrefs: Record<string, string> = {
 };
 
 const courseDiagramUrl = "/percursos/barlavento-sotavento.png";
+
+function useLocalFacebookMedia() {
+  const [items, setItems] = useState<MediaItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/media/facebook-orc", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { items: [] }))
+      .then((payload: { items?: MediaItem[] }) => {
+        if (active) setItems(payload.items ?? []);
+      })
+      .catch(() => {
+        if (active) setItems([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return items;
+}
+
+function mergeMediaItems(media: MediaItem[], localMedia: MediaItem[]) {
+  const seen = new Set<string>();
+  return [...localMedia, ...media].filter((item) => {
+    if (seen.has(item.imageUrl)) return false;
+    seen.add(item.imageUrl);
+    return true;
+  });
+}
 
 function normalizePortalData(remote: unknown): PortalData {
   if (!remote) return defaultPortalData;
@@ -757,6 +790,7 @@ function TrackingSection({
     <SectionShell id="tracking" eyebrow="Tracking da regata" title="Mapa da prova" dark wide>
       <TrackingMap
         demo={data.trackingDemo}
+        entries={data.entries}
         immersive={immersive}
         styleUrl={data.settings.mapStyleUrl}
       />
@@ -807,12 +841,18 @@ function MediaSection({
   media: PortalData["media"];
   facebookUrl?: string | null;
 }) {
+  const localMedia = useLocalFacebookMedia();
+  const displayMedia = useMemo(
+    () => mergeMediaItems(media, localMedia),
+    [media, localMedia],
+  );
+
   return (
     <SectionShell id="media" eyebrow="Media" title="Mural de barcos" wide={immersive}>
       <MediaWall
         facebookUrl={facebookUrl}
         immersive={immersive}
-        media={media}
+        media={displayMedia}
       />
     </SectionShell>
   );
