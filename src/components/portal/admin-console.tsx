@@ -707,6 +707,7 @@ function ResultForm({ setMessage }: { setMessage: (message: string | null) => vo
 
 function TrackingForm({ setMessage }: { setMessage: (message: string | null) => void }) {
   const save = useMutation(portalApi.saveTrackingDemo);
+  const syncFromBoats = useMutation(portalApi.syncEntriesFromBoats);
   return (
     <AdminCard title="Tracking demo" description="Publica frames simulados para a experiência central.">
       <form
@@ -732,6 +733,27 @@ function TrackingForm({ setMessage }: { setMessage: (message: string | null) => 
           Publicar tracking
         </Button>
       </form>
+      <div className="mt-6 rounded-lg border border-slate-200 p-4">
+        <p className="text-sm text-slate-600">
+          Usa a tabela `boats` e os certificados ORC para reconstruir inscritos,
+          tracking e resultados simulados.
+        </p>
+        <Button
+          type="button"
+          className="mt-4 w-fit bg-cyan-700 text-white hover:bg-cyan-800"
+          onClick={async () => {
+            const result = (await syncFromBoats({})) as {
+              entrySync?: { entriesInserted?: number; entriesUpdated?: number };
+              simulation?: { boats?: number; snapshots?: number };
+            };
+            setMessage(
+              `Barcos sincronizados: ${result.entrySync?.entriesInserted ?? 0} novas inscrições, ${result.entrySync?.entriesUpdated ?? 0} atualizadas; ${result.simulation?.boats ?? 0} barcos na simulação.`,
+            );
+          }}
+        >
+          Sincronizar barcos e gerar demo
+        </Button>
+      </div>
     </AdminCard>
   );
 }

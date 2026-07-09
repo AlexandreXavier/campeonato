@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { MediaWall } from "@/components/portal/media-wall";
 import { TrackingMap } from "@/components/portal/tracking-map";
 import { portalApi } from "@/lib/convex-api";
 import { defaultPortalData } from "@/lib/demo-data";
@@ -60,15 +61,26 @@ const navItems: Array<{
   mode: PortalMode;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { href: "/programa", label: "Programa", mode: "programa", icon: CalendarDays },
-  { href: "/quadro-oficial", label: "Avisos", mode: "quadro", icon: Megaphone },
-  { href: "/inscritos", label: "Inscritos", mode: "inscritos", icon: Users },
-  { href: "/resultados", label: "Resultados", mode: "resultados", icon: Trophy },
-  { href: "/tracking", label: "Tracking", mode: "tracking", icon: Radio },
-  { href: "/noticias", label: "Notícias", mode: "noticias", icon: Newspaper },
-  { href: "/media", label: "Media", mode: "media", icon: ImageIcon },
-  { href: "/comite", label: "Comité", mode: "comite", icon: ShieldCheck },
+  { href: "/#programa", label: "Programa", mode: "programa", icon: CalendarDays },
+  { href: "/#quadro-oficial", label: "Avisos", mode: "quadro", icon: Megaphone },
+  { href: "/#inscritos", label: "Inscritos", mode: "inscritos", icon: Users },
+  { href: "/#resultados", label: "Resultados", mode: "resultados", icon: Trophy },
+  { href: "/#tracking", label: "Tracking", mode: "tracking", icon: Radio },
+  { href: "/#noticias", label: "Notícias", mode: "noticias", icon: Newspaper },
+  { href: "/#media", label: "Media", mode: "media", icon: ImageIcon },
+  { href: "/#comite", label: "Comité", mode: "comite", icon: ShieldCheck },
 ];
+
+const sectionRouteHrefs: Record<string, string> = {
+  "/programa": "/#programa",
+  "/quadro-oficial": "/#quadro-oficial",
+  "/inscritos": "/#inscritos",
+  "/resultados": "/#resultados",
+  "/tracking": "/#tracking",
+  "/noticias": "/#noticias",
+  "/media": "/#media",
+  "/comite": "/#comite",
+};
 
 const courseDiagramUrl = "/percursos/barlavento-sotavento.png";
 
@@ -116,6 +128,12 @@ function formatRating(value?: number | null, decimals = 3) {
   return value.toFixed(decimals);
 }
 
+function portalHref(href: string | null | undefined, fallback: string) {
+  if (!href) return fallback;
+  if (href.startsWith("#")) return `/${href}`;
+  return sectionRouteHrefs[href] ?? href;
+}
+
 function groupedSchedule(items: ScheduleItem[]) {
   return items.reduce<Record<string, ScheduleItem[]>>((acc, item) => {
     acc[item.date] ??= [];
@@ -155,7 +173,7 @@ export function PortalExperience({ mode = "home" }: { mode?: PortalMode }) {
       <SiteHeader activeMode={mode} data={data} />
       {data.settings.urgentEnabled && data.settings.urgentMessage ? (
         <Link
-          href={data.settings.urgentHref || "/quadro-oficial"}
+          href={portalHref(data.settings.urgentHref, "/#quadro-oficial")}
           className="flex items-center justify-center gap-2 bg-amber-300 px-4 py-2 text-center text-xs font-bold uppercase tracking-normal text-slate-950"
         >
           <AlertTriangle className="size-4" />
@@ -165,7 +183,7 @@ export function PortalExperience({ mode = "home" }: { mode?: PortalMode }) {
       <Hero data={data} compact={mode !== "home"} />
       <main>
         {sectionList(mode).map((section) => (
-          <PortalSection key={section} mode={section} data={data} />
+          <PortalSection key={section} mode={section} pageMode={mode} data={data} />
         ))}
       </main>
       <Footer data={data} />
@@ -274,14 +292,14 @@ function Hero({ data, compact }: { data: PortalData; compact: boolean }) {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
-              href="/tracking"
+              href="/#tracking"
               className={cn(buttonVariants({ size: "lg" }), "bg-cyan-300 text-sky-950 hover:bg-cyan-200")}
             >
               <Radio className="size-4" />
               Tracking demo
             </Link>
             <Link
-              href="/quadro-oficial"
+              href="/#quadro-oficial"
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/40 px-3 text-sm font-semibold text-white transition hover:bg-white hover:text-sky-950"
             >
               <Megaphone className="size-4" />
@@ -332,7 +350,15 @@ function Metric({
   );
 }
 
-function PortalSection({ mode, data }: { mode: PortalMode; data: PortalData }) {
+function PortalSection({
+  mode,
+  pageMode,
+  data,
+}: {
+  mode: PortalMode;
+  pageMode: PortalMode;
+  data: PortalData;
+}) {
   switch (mode) {
     case "programa":
       return <ScheduleSection items={data.schedule} />;
@@ -343,11 +369,17 @@ function PortalSection({ mode, data }: { mode: PortalMode; data: PortalData }) {
     case "resultados":
       return <ResultsSection results={data.results} />;
     case "tracking":
-      return <TrackingSection data={data} />;
+      return <TrackingSection data={data} immersive={pageMode === "tracking"} />;
     case "noticias":
       return <NewsSection posts={data.news} />;
     case "media":
-      return <MediaSection media={data.media} facebookUrl={data.settings.facebookPageUrl} />;
+      return (
+        <MediaSection
+          immersive={pageMode === "media"}
+          media={data.media}
+          facebookUrl={data.settings.facebookPageUrl}
+        />
+      );
     case "comite":
       return <CommitteeSection data={data} />;
     default:
@@ -361,15 +393,23 @@ function SectionShell({
   title,
   children,
   dark = false,
+  wide = false,
 }: {
   id: string;
   eyebrow: string;
   title: string;
   children: React.ReactNode;
   dark?: boolean;
+  wide?: boolean;
 }) {
   return (
-    <section id={id} className={cn("py-12 sm:py-16", dark ? "bg-sky-950 text-white" : "bg-white")}>
+    <section
+      id={id}
+      className={cn(
+        "scroll-mt-24 py-12 sm:scroll-mt-28 sm:py-16",
+        dark ? "bg-sky-950 text-white" : "bg-white",
+      )}
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
@@ -381,6 +421,8 @@ function SectionShell({
             </h2>
           </div>
         </div>
+      </div>
+      <div className={cn(wide ? "w-full" : "mx-auto max-w-7xl px-4 sm:px-6")}>
         {children}
       </div>
     </section>
@@ -704,19 +746,26 @@ function ResultsSection({ results }: { results: ResultSnapshot[] }) {
   );
 }
 
-function TrackingSection({ data }: { data: PortalData }) {
+function TrackingSection({
+  data,
+  immersive,
+}: {
+  data: PortalData;
+  immersive: boolean;
+}) {
   return (
-    <SectionShell id="tracking" eyebrow="Experiência central" title="Tracking demo" dark>
-      <div className="grid gap-5 xl:grid-cols-[minmax(320px,.42fr)_minmax(0,.58fr)]">
-        <CourseDiagram dark details={false} />
-        <div className="overflow-hidden rounded-lg border border-white/15 shadow-2xl">
-          <TrackingMap demo={data.trackingDemo} styleUrl={data.settings.mapStyleUrl} />
-        </div>
+    <SectionShell id="tracking" eyebrow="Tracking da regata" title="Mapa da prova" dark wide>
+      <TrackingMap
+        demo={data.trackingDemo}
+        immersive={immersive}
+        styleUrl={data.settings.mapStyleUrl}
+      />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-sky-100">
+          Esta área é uma simulação visual para a v1, desenhada sobre o Campo 1 aproximado.
+          Não substitui avisos, resultados ou decisões oficiais do comité.
+        </p>
       </div>
-      <p className="mt-4 max-w-3xl text-sm leading-6 text-sky-100">
-        Esta área é uma simulação visual para a v1. Não substitui avisos, resultados ou decisões
-        oficiais do comité.
-      </p>
     </SectionShell>
   );
 }
@@ -750,53 +799,21 @@ function NewsSection({ posts }: { posts: NewsPost[] }) {
 }
 
 function MediaSection({
+  immersive,
   media,
   facebookUrl,
 }: {
+  immersive: boolean;
   media: PortalData["media"];
   facebookUrl?: string | null;
 }) {
   return (
-    <SectionShell id="media" eyebrow="Media" title="Galeria de barcos">
-      {media.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {media.map((item) => (
-            <a
-              key={item.id}
-              href={item.sourceUrl || item.imageUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="group overflow-hidden rounded-lg bg-slate-950 text-white"
-            >
-              <img
-                src={item.imageUrl}
-                alt={item.title}
-                className="h-64 w-full object-cover transition duration-500 group-hover:scale-105"
-                onError={(event) => {
-                  event.currentTarget.src = defaultPortalData.settings.heroImageUrl;
-                }}
-              />
-              <div className="p-4">
-                <h3 className="font-bold">{item.title}</h3>
-                <p className="mt-1 text-xs text-sky-100">{item.credit || "Fonte Facebook"}</p>
-              </div>
-            </a>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="Galeria ainda não publicada" />
-      )}
-      {facebookUrl ? (
-        <a
-          href={facebookUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-sky-950 px-4 py-2 text-sm font-bold text-white"
-        >
-          <ExternalLink className="size-4" />
-          Ver página Facebook
-        </a>
-      ) : null}
+    <SectionShell id="media" eyebrow="Media" title="Mural de barcos" wide={immersive}>
+      <MediaWall
+        facebookUrl={facebookUrl}
+        immersive={immersive}
+        media={media}
+      />
     </SectionShell>
   );
 }
@@ -873,7 +890,7 @@ function Footer({ data }: { data: PortalData }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/quadro-oficial" className="rounded-lg border border-white/20 px-3 py-2 text-sm">
+          <Link href="/#quadro-oficial" className="rounded-lg border border-white/20 px-3 py-2 text-sm">
             Quadro Oficial
           </Link>
           <Link href="/admin" className="rounded-lg border border-white/20 px-3 py-2 text-sm">

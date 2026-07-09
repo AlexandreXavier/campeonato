@@ -31,4 +31,7 @@ export const portalApi = {
     "imports:importCompetitionBoats",
   ),
   generateDemoRace: makeFunctionReference<"mutation">("imports:generateDemoRace"),
+  syncEntriesFromBoats: makeFunctionReference<"mutation">(
+    "imports:syncEntriesFromBoats",
+  ),
 };

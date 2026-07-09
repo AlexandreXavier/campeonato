@@ -136,6 +136,14 @@ function displayClassName(code: string) {
   return classLabels[code] ?? code.replace("_", " ");
 }
 
+function displayUserName(user: any) {
+  const subject = String(user?.clerkSubject ?? "");
+  if (!user || subject.startsWith("system:") || subject.startsWith("local:")) {
+    return null;
+  }
+  return user.name ?? user.email ?? null;
+}
+
 async function readPortal(ctx: any, slug: string) {
   const regatta = await getRegatta(ctx, slug);
   if (!regatta) {
@@ -148,6 +156,7 @@ async function readPortal(ctx: any, slug: string) {
     notices,
     fleets,
     boatClasses,
+    boats,
     news,
     media,
     results,
@@ -170,6 +179,7 @@ async function readPortal(ctx: any, slug: string) {
       .withIndex("by_regatta", (q: any) => q.eq("regattaId", regatta._id))
       .collect(),
     ctx.db.query("boatClasses").take(200),
+    ctx.db.query("boats").take(1000),
     ctx.db
       .query("newsPosts")
       .withIndex("by_regatta", (q: any) => q.eq("regattaId", regatta._id))
@@ -203,22 +213,46 @@ async function readPortal(ctx: any, slug: string) {
     ),
   );
   const rawEntries = entryGroups.flat();
+  const regattaClassCodes = new Set(regatta.classCodes ?? []);
+  const competitionBoats = boats.filter(
+    (boat: any) =>
+      regattaClassCodes.size === 0 ||
+      regattaClassCodes.has(boat.classCode) ||
+      String(boat.classCode ?? "").startsWith("ORC"),
+  );
   const clubIds = Array.from(
-    new Set(rawEntries.map((entry: any) => entry.clubId).filter(Boolean)),
+    new Set(
+      [...rawEntries, ...competitionBoats]
+        .map((record: any) => record.clubId)
+        .filter(Boolean),
+    ),
   );
   const certificateIds = Array.from(
-    new Set(rawEntries.map((entry: any) => entry.certificateId).filter(Boolean)),
+    new Set(
+      [...rawEntries, ...competitionBoats]
+        .map((record: any) => record.certificateId)
+        .filter(Boolean),
+    ),
   );
-  const clubs = await Promise.all(clubIds.map((id) => ctx.db.get(id)));
-  const certificates = await Promise.all(
-    certificateIds.map((id) => ctx.db.get(id)),
+  const ownerIds = Array.from(
+    new Set(competitionBoats.map((boat: any) => boat.ownerUserId).filter(Boolean)),
   );
+  const [clubs, certificates, owners] = await Promise.all([
+    Promise.all(clubIds.map((id) => ctx.db.get(id))),
+    Promise.all(certificateIds.map((id) => ctx.db.get(id))),
+    Promise.all(ownerIds.map((id) => ctx.db.get(id))),
+  ]);
   const clubById = new Map(clubs.filter(Boolean).map((club: any) => [club._id, club]));
   const certificateById = new Map(
     certificates
       .filter(Boolean)
       .map((certificate: any) => [certificate._id, certificate]),
   );
+  const ownerById = new Map(owners.filter(Boolean).map((owner: any) => [owner._id, owner]));
+  const displayEntries =
+    competitionBoats.length > 0
+      ? competitionBoats.map((boat: any) => ({ kind: "boat", record: boat }))
+      : rawEntries.map((entry: any) => ({ kind: "entry", record: entry }));
 
   const noticesWithUrls = await Promise.all(
     notices.map(async (notice: any) => {
@@ -286,21 +320,28 @@ async function readPortal(ctx: any, slug: string) {
     notices: noticesWithUrls.sort((a: any, b: any) =>
       b.publishedAt.localeCompare(a.publishedAt),
     ),
-    entries: rawEntries
-      .map((entry: any) => {
-        const club = entry.clubId ? clubById.get(entry.clubId) : null;
-        const certificate = entry.certificateId
-          ? certificateById.get(entry.certificateId)
+    entries: displayEntries
+      .map(({ kind, record }: any) => {
+        const club = record.clubId ? clubById.get(record.clubId) : null;
+        const certificate = record.certificateId
+          ? certificateById.get(record.certificateId)
           : null;
+        const owner =
+          kind === "boat" && record.ownerUserId
+            ? ownerById.get(record.ownerUserId)
+            : null;
         return {
-          id: entry._id,
-          boatName: entry.boatName,
-          classCode: entry.classCode,
-          className: labels[entry.classCode] ?? displayClassName(entry.classCode),
-          sailNumber: entry.sailNumber,
-          skipper: entry.skipper,
+          id: record._id,
+          boatName: kind === "boat" ? record.name : record.boatName,
+          classCode: record.classCode,
+          className: labels[record.classCode] ?? displayClassName(record.classCode),
+          sailNumber: record.sailNumber,
+          skipper:
+            kind === "boat"
+              ? (displayUserName(owner) ?? "A confirmar")
+              : record.skipper,
           clubName: club?.shortName ?? club?.name ?? null,
-          crew: entry.crew ?? [],
+          crew: kind === "boat" ? [] : record.crew ?? [],
           certificateRef: certificate?.refNo ?? null,
           certificateClassName: certificate?.className ?? null,
           certificateIssueDate: certificate?.issueDate ?? null,
@@ -308,7 +349,7 @@ async function readPortal(ctx: any, slug: string) {
           totInshore: certificate?.totInshore ?? null,
           totOffshore: certificate?.totOffshore ?? null,
           aphT: certificate?.aphT ?? null,
-          photoUrl: entry.photoUrl ?? null,
+          photoUrl: kind === "boat" ? null : record.photoUrl ?? null,
         };
       })
       .sort((a: any, b: any) =>

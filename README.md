@@ -31,6 +31,8 @@ Preencher:
 - `CLERK_JWT_ISSUER_DOMAIN`
 - `PORTAL_ADMIN_EMAILS`
 - `PORTAL_EDITOR_EMAILS`
+- `NEXT_PUBLIC_MAPBOX_API_KEY`
+- `NEXT_PUBLIC_MAPBOX_STYLE_ID` ou `NEXT_PUBLIC_MAP_STYLE_URL`
 
 ## Rotas
 
@@ -52,7 +54,7 @@ npm run lint
 npm run build
 ```
 
-As imagens do Facebook são guardadas como URLs curadas no admin; o fallback visual é temporário e deve ser substituído por imagens aprovadas do evento.
+O tracking usa Mapbox quando `NEXT_PUBLIC_MAPBOX_API_KEY` está definido e cai para o mapa alternativo configurado quando não houver token. As imagens do Facebook são guardadas como URLs curadas no admin; o fallback visual é temporário e deve ser substituído por imagens aprovadas do evento.
 
 ## Importar Barcos Do Projeto Leme
 

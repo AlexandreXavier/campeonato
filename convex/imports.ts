@@ -95,18 +95,20 @@ function stableNumber(value: string) {
   return [...value].reduce((total, char) => total + char.charCodeAt(0), 0);
 }
 
+const FIGUEIRA_CAMPO_1_COURSE: Array<[number, number]> = [
+  [-8.879, 40.122],
+  [-8.879, 40.154],
+  [-8.872, 40.158],
+  [-8.883, 40.151],
+  [-8.888, 40.123],
+  [-8.872, 40.123],
+  [-8.879, 40.154],
+  [-8.872, 40.158],
+  [-8.861, 40.119],
+];
+
 function interpolateCourse(progress: number, offset: number) {
-  const course = [
-    [-8.879, 40.122],
-    [-8.879, 40.154],
-    [-8.872, 40.158],
-    [-8.883, 40.151],
-    [-8.888, 40.123],
-    [-8.872, 40.123],
-    [-8.879, 40.154],
-    [-8.872, 40.158],
-    [-8.861, 40.119],
-  ];
+  const course = FIGUEIRA_CAMPO_1_COURSE;
   const bounded = Math.max(0, Math.min(1, progress));
   const segmentProgress = bounded * (course.length - 1);
   const segmentIndex = Math.min(course.length - 2, Math.floor(segmentProgress));
@@ -126,6 +128,14 @@ function interpolateCourse(progress: number, offset: number) {
 
 function byId<T extends { _id?: string }>(items: T[] | undefined) {
   return new Map((items ?? []).filter((item) => item._id).map((item) => [item._id, item]));
+}
+
+function displayOwnerName(owner: any) {
+  const subject = String(owner?.clerkSubject ?? "");
+  if (!owner || subject.startsWith("system:") || subject.startsWith("local:")) {
+    return null;
+  }
+  return clean(owner.name) || clean(owner.email) || null;
 }
 
 async function currentEditorId(ctx: any) {
@@ -163,6 +173,10 @@ async function requireImportAccess(ctx: any, token: string | undefined) {
   const editorId = await currentEditorId(ctx);
   if (editorId) {
     return editorId;
+  }
+
+  if (process.env.ENABLE_LOCAL_ADMIN === "true") {
+    return await ensureImportUser(ctx);
   }
 
   const configuredToken = process.env.BOAT_IMPORT_TOKEN;
@@ -491,6 +505,80 @@ async function findExistingBoat(ctx: any, source: string, boat: any, classCode: 
       clean(candidate.sailNumber).toLowerCase() === clean(boat.sailNumber).toLowerCase() ||
       clean(candidate.name).toLowerCase() === clean(boat.name).toLowerCase(),
   );
+}
+
+async function syncApprovedEntriesFromBoats(ctx: any, regattaId: string) {
+  const fleets = await ctx.db
+    .query("fleets")
+    .withIndex("by_regatta", (q: any) => q.eq("regattaId", regattaId))
+    .collect();
+  const fleetByClass = new Map<string, any>();
+  for (const fleet of fleets) {
+    for (const code of fleet.classCodes) {
+      fleetByClass.set(code, fleet);
+    }
+  }
+
+  const boats = await ctx.db.query("boats").take(1000);
+  const ownerIds = Array.from(
+    new Set(boats.map((boat: any) => boat.ownerUserId).filter(Boolean)),
+  );
+  const owners = await Promise.all(ownerIds.map((id) => ctx.db.get(id)));
+  const ownerById = new Map(owners.filter(Boolean).map((owner: any) => [owner._id, owner]));
+  const now = Date.now();
+  const stats = { entriesInserted: 0, entriesUpdated: 0, skipped: 0 };
+
+  for (const boat of boats) {
+    const boatName = clean(boat.name);
+    const sailNumber = clean(boat.sailNumber);
+    if (!boatName || !sailNumber) {
+      stats.skipped += 1;
+      continue;
+    }
+
+    const classCode = normalizeClassCode(boat.classCode, "ORC_B");
+    const fleet = fleetByClass.get(classCode);
+    if (!fleet) {
+      stats.skipped += 1;
+      continue;
+    }
+
+    const source = boat.externalSource ?? "convex:local:boats";
+    const sourceBoatId = boat.externalBoatId ?? boat._id;
+    const owner = boat.ownerUserId ? ownerById.get(boat.ownerUserId) : null;
+    const skipper = displayOwnerName(owner) ?? "A confirmar";
+    const entryPatch = {
+      boatName,
+      certificateId: boat.certificateId,
+      classCode,
+      clubId: boat.clubId,
+      externalBoatId: sourceBoatId,
+      externalClassCode: boat.externalClassCode ?? boat.classCode,
+      externalSource: source,
+      fleetId: fleet._id,
+      owner: skipper,
+      ownerUserId: boat.ownerUserId,
+      sailNumber,
+      skipper,
+      status: "aprovada" as const,
+      syncedAt: now,
+    };
+    const existingEntry = await findExistingEntry(
+      ctx,
+      source,
+      { _id: sourceBoatId, name: boatName, sailNumber },
+      classCode,
+    );
+    if (existingEntry) {
+      await ctx.db.patch(existingEntry._id, entryPatch);
+      stats.entriesUpdated += 1;
+    } else {
+      await ctx.db.insert("entries", entryPatch);
+      stats.entriesInserted += 1;
+    }
+  }
+
+  return stats;
 }
 
 async function getApprovedFleetEntries(ctx: any, regattaId: string) {
@@ -925,9 +1013,35 @@ export const generateDemoRace = mutationGeneric({
     await ensureFleet(ctx, regattaId, "ORC_A", "ORC A");
     await ensureFleet(ctx, regattaId, "ORC_B", "ORC B");
     await ensureBaseContent(ctx, regattaId, userId);
+    const entrySync = await syncApprovedEntriesFromBoats(ctx, regattaId);
     const simulation = await publishDemoSimulation(ctx, regattaId, userId, args);
     return {
       regattaId,
+      entrySync,
+      simulation,
+    };
+  },
+});
+
+export const syncEntriesFromBoats = mutationGeneric({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireImportAccess(ctx, args.token);
+    const organizerClubId = await ensureOrganizerClub(ctx);
+    const regattaId = await ensureRegatta(ctx, organizerClubId);
+    await ensureBoatClass(ctx, "ORC_A", "ORC A");
+    await ensureBoatClass(ctx, "ORC_B", "ORC B");
+    await ensureFleet(ctx, regattaId, "ORC_A", "ORC A");
+    await ensureFleet(ctx, regattaId, "ORC_B", "ORC B");
+    await ensureBaseContent(ctx, regattaId, userId);
+    const entrySync = await syncApprovedEntriesFromBoats(ctx, regattaId);
+    const simulation = await publishDemoSimulation(ctx, regattaId, userId);
+
+    return {
+      regattaId,
+      entrySync,
       simulation,
     };
   },
