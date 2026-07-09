@@ -9,6 +9,12 @@ Exemplos de nomes:
 - `campeonato-orc-02.jpg`
 - `campeonato-orc-03.jpg`
 
-Depois de copiar as imagens para esta pasta, recarregar o portal. A rota
-`/api/media/facebook-orc` lista automaticamente os ficheiros de imagem desta
-pasta e o mural mostra-os antes dos itens Convex.
+Depois de copiar as imagens para esta pasta, executar:
+
+```bash
+npm run media:optimize
+```
+
+O script cria versões `.webp` leves em `public/media/facebook-orc/webp`. A rota
+`/api/media/facebook-orc` usa essas versões otimizadas automaticamente e o mural
+mostra-as antes dos itens Convex.
