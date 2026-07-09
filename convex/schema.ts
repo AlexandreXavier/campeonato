@@ -18,12 +18,17 @@ export default defineSchema({
     certificateId: v.optional(v.id("orcCertificates")),
     classCode: v.string(),
     clubId: v.optional(v.id("clubs")),
+    externalBoatId: v.optional(v.string()),
+    externalClassCode: v.optional(v.string()),
+    externalSource: v.optional(v.string()),
+    syncedAt: v.optional(v.float64()),
     name: v.string(),
     ownerUserId: v.id("users"),
     sailNumber: v.string(),
   })
     .index("by_classCode", ["classCode"])
     .index("by_club", ["clubId"])
+    .index("by_external_boat", ["externalSource", "externalBoatId"])
     .index("by_owner", ["ownerUserId"]),
   clubs: defineTable({
     contactEmail: v.optional(v.string()),
@@ -43,6 +48,9 @@ export default defineSchema({
     classCode: v.string(),
     clubId: v.optional(v.id("clubs")),
     crew: v.optional(v.array(v.string())),
+    externalBoatId: v.optional(v.string()),
+    externalClassCode: v.optional(v.string()),
+    externalSource: v.optional(v.string()),
     fleetId: v.id("fleets"),
     owner: v.optional(v.string()),
     ownerUserId: v.optional(v.id("users")),
@@ -54,9 +62,11 @@ export default defineSchema({
       v.literal("aprovada"),
       v.literal("rejeitada"),
     ),
+    syncedAt: v.optional(v.float64()),
   })
     .index("by_classCode", ["classCode"])
     .index("by_club", ["clubId"])
+    .index("by_external_boat", ["externalSource", "externalBoatId"])
     .index("by_fleet", ["fleetId"])
     .index("by_fleet_status", ["fleetId", "status"])
     .index("by_owner", ["ownerUserId"])
@@ -260,6 +270,8 @@ export default defineSchema({
         sailNumber: v.string(),
         skipper: v.optional(v.string()),
         clubName: v.optional(v.string()),
+        elapsedSeconds: v.optional(v.float64()),
+        correctedSeconds: v.optional(v.float64()),
         points: v.float64(),
         raceScores: v.array(v.string()),
         note: v.optional(v.string()),

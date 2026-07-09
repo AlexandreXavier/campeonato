@@ -27,4 +27,8 @@ export const portalApi = {
     "portal:saveTrackingDemo",
   ),
   setUserRole: makeFunctionReference<"mutation">("portal:setUserRole"),
+  importCompetitionBoats: makeFunctionReference<"mutation">(
+    "imports:importCompetitionBoats",
+  ),
+  generateDemoRace: makeFunctionReference<"mutation">("imports:generateDemoRace"),
 };

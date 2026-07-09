@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,8 @@ const navItems: Array<{
   { href: "/comite", label: "Comité", mode: "comite", icon: ShieldCheck },
 ];
 
+const courseDiagramUrl = "/percursos/barlavento-sotavento.png";
+
 function normalizePortalData(remote: unknown): PortalData {
   if (!remote) return defaultPortalData;
   const portal = remote as PortalData;
@@ -100,6 +102,20 @@ function formatDateTime(date: string) {
   }).format(new Date(date));
 }
 
+function formatDuration(seconds?: number | null) {
+  if (!seconds) return "—";
+  const rounded = Math.round(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+}
+
+function formatRating(value?: number | null, decimals = 3) {
+  if (typeof value !== "number") return "—";
+  return value.toFixed(decimals);
+}
+
 function groupedSchedule(items: ScheduleItem[]) {
   return items.reduce<Record<string, ScheduleItem[]>>((acc, item) => {
     acc[item.date] ??= [];
@@ -120,6 +136,9 @@ function sectionList(mode: PortalMode): PortalMode[] {
       "media",
       "comite",
     ];
+  }
+  if (mode === "programa") {
+    return ["programa", "tracking", "resultados"];
   }
   return [mode];
 }
@@ -407,7 +426,89 @@ function ScheduleSection({ items }: { items: ScheduleItem[] }) {
       ) : (
         <EmptyState title="Programa ainda não publicado" />
       )}
+      <CourseDiagram />
     </SectionShell>
+  );
+}
+
+function CourseDiagram({
+  dark = false,
+  details = true,
+}: {
+  dark?: boolean;
+  details?: boolean;
+}) {
+  const figure = (
+      <figure
+        className={cn(
+          "overflow-hidden rounded-lg border p-4",
+          dark ? "border-white/15 bg-white text-slate-950" : "border-slate-200 bg-slate-50",
+        )}
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-normal text-red-600">
+              Anexo A2
+            </p>
+            <h3 className="text-xl font-black uppercase tracking-normal text-slate-950">
+              Barlavento/Sotavento
+            </h3>
+          </div>
+          <Badge variant="secondary">Campo 1</Badge>
+        </div>
+        <img
+          src={courseDiagramUrl}
+          alt="Anexo A2, esquema do percurso Barlavento/Sotavento com vento, marcas 1, 2, 3S, 3P, saída e chegada."
+          className="mx-auto max-h-[560px] w-full rounded-md bg-white object-contain"
+        />
+      </figure>
+  );
+
+  if (!details) {
+    return figure;
+  }
+
+  return (
+    <div
+      className={cn(
+        "mt-6 grid gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]",
+        dark && "text-white",
+      )}
+    >
+      {figure}
+      <div
+        className={cn(
+          "rounded-lg border p-5",
+          dark ? "border-white/15 bg-white/10" : "border-slate-200 bg-white",
+        )}
+      >
+        <p className={cn("text-xs font-bold uppercase tracking-normal", dark ? "text-cyan-200" : "text-cyan-700")}>
+          Percurso de prova
+        </p>
+        <h3 className="mt-2 text-2xl font-black uppercase tracking-normal">
+          Largada, subida ao vento, porta e chegada
+        </h3>
+        <div className={cn("mt-5 grid gap-3 text-sm", dark ? "text-sky-50" : "text-slate-700")}>
+          {[
+            ["Saída", "Linha de largada no sotavento."],
+            ["Marcas 1 e 2", "Subida ao vento e offset no topo."],
+            ["Porta 3S / 3P", "Descida para a porta de sotavento."],
+            ["Chegada", "Linha de chegada após a última perna."],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className={cn(
+                "rounded-lg border px-4 py-3",
+                dark ? "border-white/15 bg-sky-950/60" : "border-slate-200 bg-slate-50",
+              )}
+            >
+              <p className="font-black uppercase tracking-normal">{label}</p>
+              <p className={cn("mt-1", dark ? "text-sky-100" : "text-slate-600")}>{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -481,7 +582,8 @@ function EntriesSection({
                     <TableRow>
                       <TableHead>Barco</TableHead>
                       <TableHead>Nº vela</TableHead>
-                      <TableHead>Skipper</TableHead>
+                      <TableHead>Certificado ORC</TableHead>
+                      <TableHead>Rating</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -489,10 +591,31 @@ function EntriesSection({
                       <TableRow key={entry.id}>
                         <TableCell>
                           <div className="font-bold">{entry.boatName}</div>
-                          <div className="text-xs text-slate-500">{entry.clubName}</div>
+                          <div className="text-xs text-slate-500">
+                            {entry.clubName} · {entry.skipper}
+                          </div>
                         </TableCell>
                         <TableCell className="font-mono text-xs font-bold">{entry.sailNumber}</TableCell>
-                        <TableCell>{entry.skipper}</TableCell>
+                        <TableCell>
+                          <div className="font-mono text-xs font-bold">
+                            {entry.certificateRef ?? "—"}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {entry.certificateClassName ?? "Certificado por associar"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div>
+                            <span className="font-semibold">GPH</span>{" "}
+                            <span className="font-mono">{formatRating(entry.gph, 1)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold">ToT</span>{" "}
+                            <span className="font-mono">
+                              {formatRating(entry.totInshore)} / {formatRating(entry.totOffshore)}
+                            </span>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -529,22 +652,45 @@ function ResultsSection({ results }: { results: ResultSnapshot[] }) {
                     <TableRow>
                       <TableHead>Pos.</TableHead>
                       <TableHead>Barco</TableHead>
+                      <TableHead>Tempo real</TableHead>
+                      <TableHead>Corrigido</TableHead>
                       <TableHead>Pontos</TableHead>
                       <TableHead>Regatas</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {snapshot.rows.map((row) => (
-                      <TableRow key={`${snapshot.id}-${row.rank}-${row.sailNumber}`}>
-                        <TableCell className="font-black">{row.rank}</TableCell>
-                        <TableCell>
-                          <div className="font-bold">{row.boatName}</div>
-                          <div className="text-xs text-slate-500">{row.sailNumber} · {row.clubName}</div>
-                        </TableCell>
-                        <TableCell className="font-mono font-black">{row.points}</TableCell>
-                        <TableCell>{row.raceScores.join(" / ")}</TableCell>
-                      </TableRow>
-                    ))}
+                    {snapshot.rows.map((row) => {
+                      const rowKey = `${snapshot.id}-${row.rank}-${row.sailNumber}`;
+                      return (
+                        <Fragment key={rowKey}>
+                          <TableRow>
+                            <TableCell className="font-black">{row.rank}</TableCell>
+                            <TableCell>
+                              <div className="font-bold">{row.boatName}</div>
+                              <div className="text-xs text-slate-500">
+                                {row.sailNumber} · {row.clubName}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold">
+                              {formatDuration(row.elapsedSeconds)}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold">
+                              {formatDuration(row.correctedSeconds)}
+                            </TableCell>
+                            <TableCell className="font-mono font-black">{row.points}</TableCell>
+                            <TableCell>{row.raceScores.join(" / ")}</TableCell>
+                          </TableRow>
+                          {row.note ? (
+                            <TableRow>
+                              <TableCell />
+                              <TableCell colSpan={5} className="text-xs text-slate-500">
+                                {row.note}
+                              </TableCell>
+                            </TableRow>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -561,8 +707,11 @@ function ResultsSection({ results }: { results: ResultSnapshot[] }) {
 function TrackingSection({ data }: { data: PortalData }) {
   return (
     <SectionShell id="tracking" eyebrow="Experiência central" title="Tracking demo" dark>
-      <div className="overflow-hidden rounded-lg border border-white/15 shadow-2xl">
-        <TrackingMap demo={data.trackingDemo} styleUrl={data.settings.mapStyleUrl} />
+      <div className="grid gap-5 xl:grid-cols-[minmax(320px,.42fr)_minmax(0,.58fr)]">
+        <CourseDiagram dark details={false} />
+        <div className="overflow-hidden rounded-lg border border-white/15 shadow-2xl">
+          <TrackingMap demo={data.trackingDemo} styleUrl={data.settings.mapStyleUrl} />
+        </div>
       </div>
       <p className="mt-4 max-w-3xl text-sm leading-6 text-sky-100">
         Esta área é uma simulação visual para a v1. Não substitui avisos, resultados ou decisões

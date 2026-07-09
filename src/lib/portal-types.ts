@@ -88,6 +88,12 @@ export type Entry = {
   clubName?: string | null;
   crew?: string[];
   certificateRef?: string | null;
+  certificateClassName?: string | null;
+  certificateIssueDate?: string | null;
+  gph?: number | null;
+  totInshore?: number | null;
+  totOffshore?: number | null;
+  aphT?: number | null;
   photoUrl?: string | null;
 };
 
@@ -97,6 +103,8 @@ export type ResultRow = {
   sailNumber: string;
   skipper?: string | null;
   clubName?: string | null;
+  elapsedSeconds?: number | null;
+  correctedSeconds?: number | null;
   points: number;
   raceScores: string[];
   note?: string | null;

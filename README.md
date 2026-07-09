@@ -53,3 +53,15 @@ npm run build
 ```
 
 As imagens do Facebook são guardadas como URLs curadas no admin; o fallback visual é temporário e deve ser substituído por imagens aprovadas do evento.
+
+## Importar Barcos Do Projeto Leme
+
+O portal pode sincronizar barcos vindos do deployment Convex
+`trustworthy-magpie-581`, tabela `boats`. Os `classCode` antigos são mapeados
+para as classes canónicas do portal: `ORC1`/`ORC_A` para `ORC_A` e
+`ORC2`/`ORC_B` para `ORC_B`.
+
+A mutation `imports:importCompetitionBoats` cria/atualiza a regata, classes,
+frotas, certificados, clubes e inscrições aprovadas sem reutilizar IDs remotos.
+Para executar via CLI sem sessão Clerk, defina `BOAT_IMPORT_TOKEN` no deployment
+Convex e passe o mesmo token nos argumentos da mutation.

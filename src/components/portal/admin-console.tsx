@@ -35,7 +35,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { portalApi } from "@/lib/convex-api";
 import { defaultPortalData } from "@/lib/demo-data";
 import type { PortalData } from "@/lib/portal-types";
-import { EVENT_SLUG, hasClerkConfig, hasConvexConfig } from "@/lib/runtime-config";
+import {
+  EVENT_SLUG,
+  hasClerkConfig,
+  hasConvexConfig,
+  hasLocalAdminConfig,
+} from "@/lib/runtime-config";
 import { cn } from "@/lib/utils";
 
 type AdminTab =
@@ -96,11 +101,51 @@ function portalFromDashboard(dashboard: unknown): PortalData {
 }
 
 export function AdminConsole() {
-  if (!hasConvexConfig || !hasClerkConfig) {
+  if (!hasConvexConfig || (!hasClerkConfig && !hasLocalAdminConfig)) {
     return <SetupPanel />;
   }
 
+  if (!hasClerkConfig && hasLocalAdminConfig) {
+    return <LocalAdminConsole />;
+  }
+
   return <ConfiguredAdminConsole />;
+}
+
+function LocalAdminConsole() {
+  const [activeTab, setActiveTab] = useState<AdminTab>("home");
+  const [message, setMessage] = useState<string | null>(null);
+  const dashboard = useQuery(portalApi.getAdminDashboard, { slug: EVENT_SLUG });
+  const portal = useMemo(() => portalFromDashboard(dashboard), [dashboard]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="border-b border-white/10 bg-slate-950 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-normal text-cyan-200">
+              Administração local
+            </p>
+            <h1 className="mt-1 text-2xl font-black uppercase">Portal ORC 2026</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge className="bg-cyan-300 text-slate-950 hover:bg-cyan-300">
+              Modo local
+            </Badge>
+            <LocalUserStatus dashboard={dashboard} />
+          </div>
+        </div>
+      </header>
+      <AdminBody
+        activeTab={activeTab}
+        dashboard={dashboard}
+        message={message}
+        portal={portal}
+        setActiveTab={setActiveTab}
+        setMessage={setMessage}
+      />
+    </div>
+  );
 }
 
 function ConfiguredAdminConsole() {
@@ -182,6 +227,18 @@ function UserStatus({ dashboard }: { dashboard: unknown }) {
   );
 }
 
+function LocalUserStatus({ dashboard }: { dashboard: unknown }) {
+  const data = dashboard as
+    | { status?: string; user?: { role?: string; email?: string | null } | null }
+    | undefined;
+  return (
+    <div className="text-right text-xs">
+      <p className="font-bold">{data?.user?.email ?? "local-admin@avelas.local"}</p>
+      <p className="text-cyan-200">{data?.user?.role ?? data?.status ?? "a carregar"}</p>
+    </div>
+  );
+}
+
 function AdminBody({
   activeTab,
   dashboard,
@@ -204,13 +261,23 @@ function AdminBody({
   const role = data?.user?.role;
   const canEdit = role === "admin" || role === "editor";
 
+  if (dashboard === undefined) {
+    return (
+      <main className="mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
+        <ShieldCheck className="mb-4 size-12 text-cyan-200" />
+        <h2 className="text-3xl font-black">A carregar Convex</h2>
+        <p className="mt-3 text-slate-300">A preparar dados do painel admin.</p>
+      </main>
+    );
+  }
+
   if (data?.status === "needsSync" || !data?.user) {
     return (
       <main className="mx-auto max-w-xl px-4 py-16 text-center">
         <AlertTriangle className="mx-auto mb-4 size-12 text-amber-300" />
         <h2 className="text-3xl font-black">Utilizador ainda não sincronizado</h2>
         <p className="mt-3 text-slate-300">
-          Sincroniza o teu utilizador Clerk para a tabela `users` da Convex.
+          Sincroniza o utilizador admin para a tabela `users` da Convex.
         </p>
         <Button
           className="mt-6 bg-cyan-300 text-slate-950 hover:bg-cyan-200"
@@ -744,7 +811,8 @@ function SetupPanel() {
         <h1 className="mt-4 text-4xl font-black uppercase">Admin ainda não ligado</h1>
         <p className="mt-3 text-slate-300">
           O portal público funciona com dados demonstrativos. Para ativar escrita real,
-          configura Convex e Clerk no ambiente local/Vercel.
+          configura Convex e Clerk no ambiente local/Vercel, ou ativa o admin local
+          apenas para desenvolvimento.
         </p>
         <div className="mt-8 grid gap-4">
           <SetupItem
@@ -753,14 +821,14 @@ function SetupPanel() {
             description="URL do deployment Convex usado pelo portal."
           />
           <SetupItem
-            ok={hasClerkConfig}
-            label="NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
-            description="Chave pública Clerk para iniciar sessão no admin."
+            ok={hasClerkConfig || hasLocalAdminConfig}
+            label="NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / NEXT_PUBLIC_LOCAL_ADMIN"
+            description="Clerk para produção, ou admin local para desenvolvimento."
           />
           <SetupItem
-            ok={false}
-            label="CLERK_SECRET_KEY / CLERK_JWT_ISSUER_DOMAIN"
-            description="Configuração server-side e JWT Clerk para autenticar Convex."
+            ok={hasLocalAdminConfig}
+            label="CLERK_SECRET_KEY / ENABLE_LOCAL_ADMIN"
+            description="JWT Clerk para produção, ou flag Convex local para escrita em desenvolvimento."
           />
           <SetupItem
             ok={false}

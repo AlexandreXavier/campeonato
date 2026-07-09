@@ -7,6 +7,12 @@ const classLabels: Record<string, string> = {
   ORC_B: "ORC B",
 };
 
+const LOCAL_ADMIN_SUBJECT = "local:avelas-admin";
+const LOCAL_ADMIN_EMAIL = "local-admin@avelas.local";
+const LOCAL_ADMIN_NAME = "Admin local AVELAS";
+
+const localAdminEnabled = () => process.env.ENABLE_LOCAL_ADMIN === "true";
+
 const portalAdminEmails = () =>
   (process.env.PORTAL_ADMIN_EMAILS ?? "")
     .split(",")
@@ -29,7 +35,61 @@ async function getRegatta(ctx: any, slug: string) {
 async function getCurrentUser(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
-    return null;
+    if (!localAdminEnabled()) {
+      return null;
+    }
+
+    return {
+      _id: "local-admin",
+      clerkSubject: LOCAL_ADMIN_SUBJECT,
+      email: LOCAL_ADMIN_EMAIL,
+      name: LOCAL_ADMIN_NAME,
+      role: "admin",
+    };
+  }
+
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerkSubject", (q: any) => q.eq("clerkSubject", identity.subject))
+    .unique();
+}
+
+async function ensureLocalAdminUser(ctx: any) {
+  const existing = await ctx.db
+    .query("users")
+    .withIndex("by_clerkSubject", (q: any) => q.eq("clerkSubject", LOCAL_ADMIN_SUBJECT))
+    .unique();
+
+  const userFields = {
+    clerkSubject: LOCAL_ADMIN_SUBJECT,
+    email: LOCAL_ADMIN_EMAIL,
+    name: LOCAL_ADMIN_NAME,
+    role: "admin" as const,
+  };
+
+  if (existing) {
+    if (
+      existing.email !== userFields.email ||
+      existing.name !== userFields.name ||
+      existing.role !== userFields.role
+    ) {
+      await ctx.db.patch(existing._id, userFields);
+    }
+    return { ...existing, ...userFields };
+  }
+
+  const id = await ctx.db.insert("users", userFields);
+  const user = await ctx.db.get(id);
+  if (!user) {
+    throw new Error("Nao foi possivel criar o admin local.");
+  }
+  return user;
+}
+
+async function getWritableCurrentUser(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return localAdminEnabled() ? await ensureLocalAdminUser(ctx) : null;
   }
 
   return await ctx.db
@@ -39,7 +99,7 @@ async function getCurrentUser(ctx: any) {
 }
 
 async function requireEditor(ctx: any) {
-  const user = await getCurrentUser(ctx);
+  const user = await getWritableCurrentUser(ctx);
   if (!user || !["admin", "editor"].includes(user.role)) {
     throw new Error("Sem permissao para editar este portal.");
   }
@@ -47,7 +107,7 @@ async function requireEditor(ctx: any) {
 }
 
 async function requireAdmin(ctx: any) {
-  const user = await getCurrentUser(ctx);
+  const user = await getWritableCurrentUser(ctx);
   if (!user || user.role !== "admin") {
     throw new Error("Apenas administradores podem executar esta acao.");
   }
@@ -242,6 +302,12 @@ async function readPortal(ctx: any, slug: string) {
           clubName: club?.shortName ?? club?.name ?? null,
           crew: entry.crew ?? [],
           certificateRef: certificate?.refNo ?? null,
+          certificateClassName: certificate?.className ?? null,
+          certificateIssueDate: certificate?.issueDate ?? null,
+          gph: certificate?.gph ?? null,
+          totInshore: certificate?.totInshore ?? null,
+          totOffshore: certificate?.totOffshore ?? null,
+          aphT: certificate?.aphT ?? null,
           photoUrl: entry.photoUrl ?? null,
         };
       })
@@ -305,7 +371,7 @@ export const getAdminDashboard = queryGeneric({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!identity && !localAdminEnabled()) {
       return { status: "signedOut", user: null, portal: null };
     }
 
@@ -317,8 +383,8 @@ export const getAdminDashboard = queryGeneric({
       user: user
         ? {
             id: user._id,
-            name: user.name ?? identity.name ?? null,
-            email: user.email ?? identity.email ?? null,
+            name: user.name ?? identity?.name ?? null,
+            email: user.email ?? identity?.email ?? null,
             role: user.role,
           }
         : null,
@@ -332,6 +398,10 @@ export const syncCurrentUser = mutationGeneric({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
+      if (localAdminEnabled()) {
+        const user = await ensureLocalAdminUser(ctx);
+        return user._id;
+      }
       throw new Error("Sessao Clerk em falta.");
     }
     const email = (identity.email ?? "").toLowerCase();
