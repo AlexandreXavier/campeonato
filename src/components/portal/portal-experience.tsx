@@ -13,13 +13,14 @@ import {
   Megaphone,
   Menu,
   Newspaper,
+  Printer,
   Radio,
   ShieldCheck,
   Trophy,
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -166,6 +167,10 @@ function formatRating(value?: number | null, decimals = 3) {
   return value.toFixed(decimals);
 }
 
+function displayPortalText(value?: string | null) {
+  return (value ?? "").replace(/\bAVELAS\b/g, "POBREZA FRANCISCANA");
+}
+
 function portalHref(href: string | null | undefined, fallback: string) {
   if (!href) return fallback;
   if (href.startsWith("#")) return `/${href}`;
@@ -240,7 +245,7 @@ function SiteHeader({ activeMode, data }: { activeMode: PortalMode; data: Portal
           </span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-black uppercase tracking-normal">
-              {data.event.organizer}
+              {displayPortalText(data.event.organizer)}
             </span>
             <span className="block truncate text-xs text-sky-100">
               ORC 2026 · Figueira da Foz
@@ -495,7 +500,9 @@ function ScheduleSection({ items }: { items: ScheduleItem[] }) {
                     </div>
                     <h3 className="mt-3 text-base font-bold text-slate-950">{item.title}</h3>
                     {item.location ? (
-                      <p className="mt-1 text-sm font-medium text-cyan-800">{item.location}</p>
+                      <p className="mt-1 text-sm font-medium text-cyan-800">
+                        {displayPortalText(item.location)}
+                      </p>
                     ) : null}
                     {item.description ? (
                       <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
@@ -675,7 +682,7 @@ function EntriesSection({
                         <TableCell>
                           <div className="font-bold">{entry.boatName}</div>
                           <div className="text-xs text-slate-500">
-                            {entry.clubName} · {entry.skipper}
+                            {displayPortalText(entry.clubName)} · {entry.skipper}
                           </div>
                         </TableCell>
                         <TableCell className="font-mono text-xs font-bold">{entry.sailNumber}</TableCell>
@@ -751,7 +758,7 @@ function ResultsSection({ results }: { results: ResultSnapshot[] }) {
                             <TableCell>
                               <div className="font-bold">{row.boatName}</div>
                               <div className="text-xs text-slate-500">
-                                {row.sailNumber} · {row.clubName}
+                                {row.sailNumber} · {displayPortalText(row.clubName)}
                               </div>
                             </TableCell>
                             <TableCell className="font-mono text-xs font-bold">
@@ -867,6 +874,20 @@ function MediaSection({
 }
 
 function ReportSection({ immersive }: { immersive: boolean }) {
+  const reportFrameRef = useRef<HTMLIFrameElement>(null);
+
+  const handlePrintReport = () => {
+    const reportWindow = reportFrameRef.current?.contentWindow;
+
+    if (!reportWindow) {
+      window.open(reportHtmlUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    reportWindow.focus();
+    reportWindow.print();
+  };
+
   return (
     <SectionShell id="report" eyebrow="Report" title="FPV PAO 2026" wide>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -877,10 +898,18 @@ function ReportSection({ immersive }: { immersive: boolean }) {
                 Documento HTML
               </p>
               <p className="text-sm font-bold text-slate-950">
-                Federação Portuguesa de Vela: leitura crítica do PAO 2026
+                POBREZA FRANCISCANA: leitura crítica do PAO 2026
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-normal text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+              >
+                <Printer className="size-4" />
+                Imprimir
+              </button>
               <a
                 href={reportHtmlUrl}
                 target="_blank"
@@ -901,6 +930,7 @@ function ReportSection({ immersive }: { immersive: boolean }) {
             </div>
           </div>
           <iframe
+            ref={reportFrameRef}
             src={reportHtmlUrl}
             title="Report FPV PAO 2026"
             className={cn(
@@ -981,7 +1011,9 @@ function CommitteeSection({ data }: { data: PortalData }) {
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle className="text-2xl">{data.event.organizer}</CardTitle>
+            <CardTitle className="text-2xl">
+              {displayPortalText(data.event.organizer)}
+            </CardTitle>
             <CardDescription>
               Organização do {data.event.name}, {data.event.venueName}, {data.event.courseArea}.
             </CardDescription>
@@ -1043,7 +1075,7 @@ function Footer({ data }: { data: PortalData }) {
         <div>
           <p className="font-black uppercase tracking-normal">{data.event.name}</p>
           <p className="mt-1 text-sm text-slate-300">
-            {data.event.organizer} · {data.event.venueCity} · {data.event.courseArea}
+            {displayPortalText(data.event.organizer)} · {data.event.venueCity} · {data.event.courseArea}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
