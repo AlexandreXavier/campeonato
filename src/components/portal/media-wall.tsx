@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ExternalLink,
   Maximize2,
+  Minimize2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,6 +50,8 @@ type MediaWallEngine = {
   unfocus: () => void;
 };
 
+type FullscreenMode = "native" | "fallback" | null;
+
 const fallbackImage = defaultPortalData.settings.heroImageUrl;
 const aspectFallbacks = [1.52, 1.33, 1.78, 0.82, 1.12, 1.62, 0.92, 1.42];
 
@@ -91,6 +94,10 @@ function makeMediaEl(item: WallItem, fit: "cover" | "contain" = "cover") {
     { once: true },
   );
   return el;
+}
+
+function isMuralControlTarget(event: Event) {
+  return event.target instanceof Element && Boolean(event.target.closest("[data-mural-control]"));
 }
 
 function initMediaWallEngine({
@@ -500,16 +507,19 @@ function initMediaWallEngine({
     hovering = false;
   };
   const onStageDown = (event: PointerEvent) => {
+    if (isMuralControlTarget(event)) return;
     if (event.button !== 0) return;
     downPos = pointFromEvent(event);
     dragged = false;
   };
-  const onStageClick = () => {
+  const onStageClick = (event: MouseEvent) => {
+    if (isMuralControlTarget(event)) return;
     if (focused || dragged) return;
     const cell = layout?.cells[featured];
     if (cell) focusPhoto(cell.mi);
   };
   const onMiddleDown = (event: PointerEvent) => {
+    if (isMuralControlTarget(event)) return;
     if (event.button !== 1 || focused) return;
     event.preventDefault();
     panning = true;
@@ -604,10 +614,12 @@ export function MediaWall({
 }) {
   const items = useMemo(() => mediaToWallItems(media), [media]);
   const [focused, setFocused] = useState(false);
+  const [fullscreenMode, setFullscreenMode] = useState<FullscreenMode>(null);
   const [previewItem, setPreviewItem] = useState<WallItem | null>(null);
   const engineRef = useRef<MediaWallEngine | null>(null);
   const previewMediaRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLElement>(null);
   const wallRef = useRef<HTMLDivElement>(null);
 
@@ -642,6 +654,39 @@ export function MediaWall({
     };
   }, [items]);
 
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const fullscreenElement = document.fullscreenElement;
+      setFullscreenMode((current) => {
+        if (fullscreenElement === shellRef.current) return "native";
+        return current === "native" ? null : current;
+      });
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (fullscreenMode !== "fallback") return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullscreenMode(null);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullscreenMode]);
+
   const closePreview = (event: React.MouseEvent) => {
     event.stopPropagation();
     engineRef.current?.unfocus();
@@ -653,6 +698,32 @@ export function MediaWall({
   const nextPreview = (event: React.MouseEvent) => {
     event.stopPropagation();
     engineRef.current?.navFocus(1);
+  };
+  const toggleFullscreen = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    if (fullscreenMode) {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen().catch(() => undefined);
+      }
+      setFullscreenMode(null);
+      return;
+    }
+
+    if (shell.requestFullscreen) {
+      try {
+        await shell.requestFullscreen();
+        setFullscreenMode("native");
+        return;
+      } catch {
+        setFullscreenMode("fallback");
+        return;
+      }
+    }
+
+    setFullscreenMode("fallback");
   };
 
   if (!items.length) {
@@ -667,12 +738,15 @@ export function MediaWall({
 
   return (
     <div
+      ref={shellRef}
       className={cn(
         "orc-media-wall relative overflow-hidden bg-slate-950 text-white shadow-2xl",
         focused && "media-wall-focused",
-        immersive
-          ? "h-[calc(100svh-9rem)] min-h-[680px]"
-          : "h-[70vh] min-h-[620px] max-h-[820px] rounded-lg",
+        fullscreenMode
+          ? "fixed inset-0 z-[100] h-[100svh] min-h-0 max-h-none rounded-none"
+          : immersive
+            ? "h-[calc(100svh-9rem)] min-h-[680px]"
+            : "h-[70vh] min-h-[620px] max-h-[820px] rounded-lg",
       )}
     >
       <section
@@ -683,6 +757,7 @@ export function MediaWall({
         <div ref={wallRef} className="absolute inset-0" />
         <div className="mural-wash" aria-hidden="true" />
         <button
+          data-mural-control
           type="button"
           aria-label="Fechar fotografia"
           className={cn(
@@ -707,6 +782,7 @@ export function MediaWall({
             )}
           >
             <button
+              data-mural-control
               type="button"
               aria-label="Fotografia anterior"
               className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/12 text-white backdrop-blur transition hover:bg-white/20"
@@ -723,6 +799,7 @@ export function MediaWall({
               </h3>
             </div>
             <button
+              data-mural-control
               type="button"
               aria-label="Fotografia seguinte"
               className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/12 text-white backdrop-blur transition hover:bg-white/20"
@@ -745,6 +822,7 @@ export function MediaWall({
             </span>
             {previewItem?.href ? (
               <a
+                data-mural-control
                 href={previewItem.href}
                 target="_blank"
                 rel="noreferrer"
@@ -752,10 +830,11 @@ export function MediaWall({
                 className="grid size-9 place-items-center rounded-full border border-white/15 bg-white/12 text-white backdrop-blur transition hover:bg-white/20"
                 onClick={(event) => event.stopPropagation()}
               >
-                <Maximize2 className="size-4" />
+                <ExternalLink className="size-4" />
               </a>
             ) : null}
             <button
+              data-mural-control
               type="button"
               aria-label="Fechar fotografia"
               className="grid size-9 place-items-center rounded-full border border-white/15 bg-white/12 text-white backdrop-blur transition hover:bg-white/20"
@@ -779,8 +858,20 @@ export function MediaWall({
         </div>
 
         <div className="absolute right-4 top-4 z-40 flex items-center gap-2 sm:right-6 sm:top-6">
+          <button
+            data-mural-control
+            type="button"
+            aria-label={fullscreenMode ? "Sair do ecrã inteiro" : "Ver mural em ecrã inteiro"}
+            aria-pressed={Boolean(fullscreenMode)}
+            className="grid size-10 place-items-center rounded-full border border-white/15 bg-slate-950/60 text-white backdrop-blur transition hover:bg-white hover:text-slate-950"
+            onClick={toggleFullscreen}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {fullscreenMode ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+          </button>
           {facebookUrl ? (
             <a
+              data-mural-control
               href={facebookUrl}
               target="_blank"
               rel="noreferrer"

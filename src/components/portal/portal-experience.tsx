@@ -19,6 +19,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -41,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MediaWall } from "@/components/portal/media-wall";
+import { OrcPolarComparisonGrid, OrcPolarPanel } from "@/components/portal/orc-polar-panel";
 import { TrackingMap } from "@/components/portal/tracking-map";
 import { portalApi } from "@/lib/convex-api";
 import { defaultPortalData } from "@/lib/demo-data";
@@ -90,6 +92,16 @@ const courseDiagramUrl = "/percursos/barlavento-sotavento.png";
 const reportHtmlUrl = "/report/fpv-pao-2026-briefing.html";
 const reportPdfUrl = "/report/Plano-de-Atividades-e-Orcamento-2026-FPV.pdf";
 const reportSheetUrl = "/report/Orcamento_FPV_2026.xlsx";
+const siteLogoUrl = "/android-chrome-192x192.png";
+const publicFallbackPortalData: PortalData = {
+  ...defaultPortalData,
+  entries: [],
+  results: [],
+  trackingDemo: {
+    ...defaultPortalData.trackingDemo,
+    frames: [],
+  },
+};
 
 function useLocalFacebookMedia() {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -124,15 +136,20 @@ function mergeMediaItems(media: MediaItem[], localMedia: MediaItem[]) {
 }
 
 function normalizePortalData(remote: unknown): PortalData {
-  if (!remote) return defaultPortalData;
-  const portal = remote as PortalData;
+  if (!remote) return publicFallbackPortalData;
+  const portal = remote as Partial<PortalData>;
   return {
-    ...defaultPortalData,
+    ...publicFallbackPortalData,
     ...portal,
-    event: { ...defaultPortalData.event, ...portal.event },
-    settings: { ...defaultPortalData.settings, ...portal.settings },
-    classLabels: { ...defaultPortalData.classLabels, ...portal.classLabels },
-    trackingDemo: portal.trackingDemo ?? defaultPortalData.trackingDemo,
+    event: { ...publicFallbackPortalData.event, ...portal.event },
+    settings: { ...publicFallbackPortalData.settings, ...portal.settings },
+    classLabels: {
+      ...publicFallbackPortalData.classLabels,
+      ...portal.classLabels,
+    },
+    entries: portal.entries ?? [],
+    results: portal.results ?? [],
+    trackingDemo: portal.trackingDemo ?? publicFallbackPortalData.trackingDemo,
   };
 }
 
@@ -141,6 +158,7 @@ function formatDate(date: string) {
     weekday: "short",
     day: "2-digit",
     month: "short",
+    timeZone: "Europe/Lisbon",
   }).format(new Date(`${date}T12:00:00`));
 }
 
@@ -150,6 +168,7 @@ function formatDateTime(date: string) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Europe/Lisbon",
   }).format(new Date(date));
 }
 
@@ -206,11 +225,20 @@ function sectionList(mode: PortalMode): PortalMode[] {
 }
 
 export function PortalExperience({ mode = "home" }: { mode?: PortalMode }) {
+  const [clientReady, setClientReady] = useState(false);
   const remote = useQuery(
     portalApi.getPublicPortal,
     hasConvexConfig ? { slug: EVENT_SLUG } : "skip",
   );
-  const data = useMemo(() => normalizePortalData(remote), [remote]);
+  const data = useMemo(
+    () => normalizePortalData(clientReady ? remote : undefined),
+    [clientReady, remote],
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setClientReady(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
@@ -240,8 +268,15 @@ function SiteHeader({ activeMode, data }: { activeMode: PortalMode; data: Portal
     <header className="sticky top-0 z-40 border-b border-white/15 bg-sky-950/95 text-white backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="flex min-w-0 items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-cyan-300 text-sky-950">
-            <Anchor className="size-5" />
+          <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white shadow-sm">
+            <Image
+              src={siteLogoUrl}
+              alt="Logo do Campeonato ORC 2026"
+              width={36}
+              height={36}
+              className="size-9 object-contain"
+              priority
+            />
           </span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-black uppercase tracking-normal">
@@ -650,69 +685,122 @@ function EntriesSection({
   entries: Entry[];
   classLabels: Record<string, string>;
 }) {
+  const [selectedPolarEntryIds, setSelectedPolarEntryIds] = useState<string[]>([]);
   const grouped = entries.reduce<Record<string, Entry[]>>((acc, entry) => {
     acc[entry.classCode] ??= [];
     acc[entry.classCode].push(entry);
     return acc;
   }, {});
+  const entriesById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
+  const sideEntry = useMemo(() => {
+    return (
+      entries.find((entry) => entry.boatName.replace(/\s+/g, "").toUpperCase() === "MADMAX") ??
+      entries[0] ??
+      null
+    );
+  }, [entries]);
+  const selectedPolarEntries = useMemo(() => {
+    return selectedPolarEntryIds
+      .map((entryId) => entriesById.get(entryId))
+      .filter((entry): entry is Entry => Boolean(entry));
+  }, [entriesById, selectedPolarEntryIds]);
+
+  function togglePolarEntry(entryId: string) {
+    setSelectedPolarEntryIds((current) => {
+      if (current.includes(entryId)) {
+        return current.filter((id) => id !== entryId);
+      }
+
+      return [...current, entryId];
+    });
+  }
 
   return (
     <SectionShell id="inscritos" eyebrow="Inscritos aprovados" title="Frota ORC A/B">
       {entries.length ? (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {Object.entries(grouped).map(([classCode, classEntries]) => (
-            <Card key={classCode} className="rounded-lg">
-              <CardHeader>
-                <CardTitle className="text-2xl">{classLabels[classCode] ?? classCode}</CardTitle>
-                <CardDescription>{classEntries.length} barcos aprovados</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Barco</TableHead>
-                      <TableHead>Nº vela</TableHead>
-                      <TableHead>Certificado ORC</TableHead>
-                      <TableHead>Rating</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {classEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          <div className="font-bold">{entry.boatName}</div>
-                          <div className="text-xs text-slate-500">
-                            {displayPortalText(entry.clubName)} · {entry.skipper}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs font-bold">{entry.sailNumber}</TableCell>
-                        <TableCell>
-                          <div className="font-mono text-xs font-bold">
-                            {entry.certificateRef ?? "—"}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {entry.certificateClassName ?? "Certificado por associar"}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          <div>
-                            <span className="font-semibold">GPH</span>{" "}
-                            <span className="font-mono">{formatRating(entry.gph, 1)}</span>
-                          </div>
-                          <div>
-                            <span className="font-semibold">ToT</span>{" "}
-                            <span className="font-mono">
-                              {formatRating(entry.totInshore)} / {formatRating(entry.totOffshore)}
-                            </span>
-                          </div>
-                        </TableCell>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid content-start gap-5 lg:grid-cols-2 xl:grid-cols-1">
+            {Object.entries(grouped).map(([classCode, classEntries]) => (
+              <Card key={classCode} className="rounded-lg">
+                <CardHeader>
+                  <CardTitle className="text-2xl">{classLabels[classCode] ?? classCode}</CardTitle>
+                  <CardDescription>{classEntries.length} barcos aprovados</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader className="bg-gradient-to-b from-slate-100 to-slate-50 shadow-sm [&_th]:font-black [&_th]:text-slate-700">
+                      <TableRow className="border-slate-300 hover:bg-transparent">
+                        <TableHead className="w-14 text-center font-black text-slate-700">Polar</TableHead>
+                        <TableHead>Barco</TableHead>
+                        <TableHead>Nº vela</TableHead>
+                        <TableHead>Certificado ORC</TableHead>
+                        <TableHead>Rating</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ))}
+                    </TableHeader>
+                    <TableBody>
+                      {classEntries.map((entry) => {
+                        const selected = sideEntry?.id === entry.id;
+                        const polarSelected = selectedPolarEntryIds.includes(entry.id);
+                        return (
+                          <TableRow
+                            key={entry.id}
+                            data-state={selected ? "selected" : undefined}
+                            className={cn(
+                              "transition hover:bg-cyan-50",
+                              polarSelected && "bg-slate-50",
+                              selected && "bg-cyan-50 ring-1 ring-inset ring-cyan-200",
+                            )}
+                          >
+                            <TableCell className="text-center">
+                              <input
+                                aria-label={`Mostrar polar de ${entry.boatName}`}
+                                checked={polarSelected}
+                                className="size-4 rounded border-slate-300 accent-cyan-600"
+                                type="checkbox"
+                                onChange={() => {
+                                  togglePolarEntry(entry.id);
+                                }}
+                                onClick={(event) => event.stopPropagation()}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-bold">{entry.boatName}</div>
+                              <div className="text-xs text-slate-500">
+                                {displayPortalText(entry.clubName)} · {entry.skipper}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold">{entry.sailNumber}</TableCell>
+                            <TableCell>
+                              <div className="font-mono text-xs font-bold">
+                                {entry.certificateRef ?? "—"}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {entry.certificateClassName ?? "Certificado por associar"}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div>
+                                <span className="font-semibold">GPH</span>{" "}
+                                <span className="font-mono">{formatRating(entry.gph, 1)}</span>
+                              </div>
+                              <div>
+                                <span className="font-semibold">ToT</span>{" "}
+                                <span className="font-mono">
+                                  {formatRating(entry.totInshore)} / {formatRating(entry.totOffshore)}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ))}
+            <OrcPolarComparisonGrid selectedEntries={selectedPolarEntries} />
+          </div>
+          <OrcPolarPanel selectedEntry={sideEntry} />
         </div>
       ) : (
         <EmptyState title="Lista de inscritos ainda não disponível" />
@@ -1072,11 +1160,22 @@ function Footer({ data }: { data: PortalData }) {
   return (
     <footer className="bg-slate-950 px-4 py-8 text-white sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <p className="font-black uppercase tracking-normal">{data.event.name}</p>
-          <p className="mt-1 text-sm text-slate-300">
-            {displayPortalText(data.event.organizer)} · {data.event.venueCity} · {data.event.courseArea}
-          </p>
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white">
+            <Image
+              src={siteLogoUrl}
+              alt="Logo do Campeonato ORC 2026"
+              width={40}
+              height={40}
+              className="size-10 object-contain"
+            />
+          </span>
+          <div>
+            <p className="font-black uppercase tracking-normal">{data.event.name}</p>
+            <p className="mt-1 text-sm text-slate-300">
+              {displayPortalText(data.event.organizer)} · {data.event.venueCity} · {data.event.courseArea}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/#quadro-oficial" className="rounded-lg border border-white/20 px-3 py-2 text-sm">
