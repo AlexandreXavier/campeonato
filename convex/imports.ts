@@ -107,6 +107,20 @@ const FIGUEIRA_CAMPO_1_COURSE: Array<[number, number]> = [
   [-8.908, 40.118],
 ];
 
+const CHAMPIONSHIP_DATES = ["2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14"];
+const DAILY_RACE_TIMES = ["12:00", "14:30", "17:00"];
+const CHAMPIONSHIP_RACES = CHAMPIONSHIP_DATES.flatMap((date, dayIndex) =>
+  DAILY_RACE_TIMES.map((startTime, slotIndex) => {
+    const raceNumber = dayIndex * DAILY_RACE_TIMES.length + slotIndex + 1;
+    return {
+      date,
+      distanceMiles: slotIndex === 1 ? 10.8 : slotIndex === 2 ? 8.6 : 12.4,
+      raceNumber,
+      startTime,
+    };
+  }),
+);
+
 function interpolateCourse(progress: number, offset: number) {
   const course = FIGUEIRA_CAMPO_1_COURSE;
   const bounded = Math.max(0, Math.min(1, progress));
@@ -279,6 +293,42 @@ async function ensureFleet(ctx: any, regattaId: string, code: string, name: stri
   });
 }
 
+async function upsertScheduleItem(ctx: any, regattaId: string, userId: string, item: any) {
+  const sameDayItems = await ctx.db
+    .query("scheduleItems")
+    .withIndex("by_regatta_date", (q: any) => q.eq("regattaId", regattaId).eq("date", item.date))
+    .collect();
+  const existing = sameDayItems.find(
+    (scheduleItem: any) =>
+      scheduleItem.title === item.title ||
+      (item.legacyTitle && scheduleItem.title === item.legacyTitle),
+  );
+  const now = Date.now();
+  const patch = {
+    date: item.date,
+    description: item.description,
+    highlight: item.highlight,
+    location: item.location,
+    time: item.time,
+    title: item.title,
+    type: item.type,
+    updatedAt: now,
+    updatedBy: userId,
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, patch);
+    return existing._id;
+  }
+
+  return await ctx.db.insert("scheduleItems", {
+    regattaId,
+    ...patch,
+    createdAt: now,
+    createdBy: userId,
+  });
+}
+
 async function ensureBaseContent(ctx: any, regattaId: string, userId: string) {
   const now = Date.now();
   const audit = {
@@ -314,29 +364,48 @@ async function ensureBaseContent(ctx: any, regattaId: string, userId: string) {
     });
   }
 
-  const schedule = await ctx.db
-    .query("scheduleItems")
-    .withIndex("by_regatta", (q: any) => q.eq("regattaId", regattaId))
-    .first();
-  if (!schedule) {
-    for (const item of [
-      ["2026-07-11", "09:00", "Abertura do secretariado", "comite", true],
-      ["2026-07-11", "14:00", "Regata 1 prevista", "regata", true],
-      ["2026-07-12", "12:00", "Regatas barlavento/sotavento", "regata", false],
-      ["2026-07-13", "12:00", "Regatas costeiras ORC", "regata", false],
-      ["2026-07-14", "17:30", "Cerimonia de entrega de premios", "cerimonia", true],
-    ] as const) {
-      await ctx.db.insert("scheduleItems", {
-        regattaId,
-        date: item[0],
-        time: item[1],
-        title: item[2],
-        type: item[3],
-        location: item[3] === "regata" ? "Campo 1" : "Marina da Figueira da Foz",
-        highlight: item[4],
-        ...audit,
-      });
-    }
+  const baseScheduleItems = [
+    {
+      date: "2026-07-11",
+      description: "Confirmacao de presenca, documentacao e acreditacoes.",
+      highlight: true,
+      location: "Marina da Figueira da Foz",
+      time: "09:00",
+      title: "Abertura do secretariado",
+      type: "comite",
+    },
+    ...CHAMPIONSHIP_RACES.map((race) => ({
+      date: race.date,
+      description:
+        "Prova pontuavel ORC na janela diaria 12:00-18:00, sujeita a confirmacao do comite.",
+      highlight: DAILY_RACE_TIMES.indexOf(race.startTime) === 0,
+      legacyTitle:
+        race.raceNumber === 1
+          ? "Regata 1 prevista"
+          : race.raceNumber === 4
+            ? "Regatas barlavento/sotavento"
+            : race.raceNumber === 7
+              ? "Regatas costeiras ORC"
+              : undefined,
+      location: "Campo 1",
+      time: race.startTime,
+      title: `Prova ${race.raceNumber} - largada prevista`,
+      type: "regata",
+    })),
+    {
+      date: "2026-07-14",
+      description: "Entrega de premios apos publicacao de resultados finais.",
+      highlight: true,
+      legacyTitle: "Cerimonia de entrega de premios",
+      location: "AVELAS",
+      time: "18:30",
+      title: "Cerimonia de entrega de premios",
+      type: "cerimonia",
+    },
+  ];
+
+  for (const item of baseScheduleItems) {
+    await upsertScheduleItem(ctx, regattaId, userId, item);
   }
 
   const notice = await ctx.db
@@ -626,18 +695,30 @@ async function getApprovedFleetEntries(ctx: any, regattaId: string) {
   }));
 }
 
-function scoreEntry(entry: any, certificate: any, index: number, distanceMiles: number) {
+function scoreEntry(
+  entry: any,
+  certificate: any,
+  index: number,
+  distanceMiles: number,
+  raceNumber: number,
+  fleetSize: number,
+) {
   const seed = stableNumber(`${entry.boatName}-${entry.sailNumber}`);
   const gph = certificate?.gph ?? 590;
   const ratingFactor = certificate?.totInshore ?? certificate?.totOffshore ?? 1;
   const baseElapsed = distanceMiles * 600;
   const speedCredit = (590 - gph) * 7;
-  const fleetSpread = index * 80 + (seed % 130) - 55;
+  const fleetSpread = index * 48 + (seed % 70) - 35;
+  const rotationRank = (index + raceNumber - 1) % Math.max(fleetSize, 1);
+  const rotationSwing = (rotationRank - (fleetSize - 1) / 2) * 170;
+  const weatherSwing = ((seed + raceNumber * 53) % 90) - 45;
   const elapsedSeconds = Math.max(
     distanceMiles * 430,
-    Math.round(baseElapsed - speedCredit + fleetSpread),
+    Math.round(baseElapsed - speedCredit + fleetSpread + rotationSwing + weatherSwing),
   );
-  const correctedSeconds = Math.round(elapsedSeconds * ratingFactor);
+  const correctedSeconds = Math.round(
+    elapsedSeconds * ratingFactor + rotationSwing * 0.35,
+  );
   const averageSpeed = distanceMiles / (elapsedSeconds / 3600);
 
   return {
@@ -652,6 +733,7 @@ async function upsertTrackingDemo(
   regattaId: string,
   userId: string,
   scoredEntries: any[],
+  raceNumber = 1,
 ) {
   if (scoredEntries.length === 0) {
     return null;
@@ -695,7 +777,7 @@ async function upsertTrackingDemo(
     .first();
   const now = Date.now();
   const patch = {
-    title: "Regata 1 simulada - Barlavento/Sotavento",
+    title: `Prova ${raceNumber} simulada - Barlavento/Sotavento`,
     frames,
     updatedAt: now,
     updatedBy: userId,
@@ -751,6 +833,12 @@ async function upsertResultSnapshot(
   rows: any[],
 ) {
   const now = Date.now();
+  const legacyTitle =
+    scope === "regata" && typeof raceNumber === "number"
+      ? `Regata ${raceNumber} - tempos simulados`
+      : scope === "geral"
+        ? "Classificacao geral simulada"
+        : title;
   const existing = (
     await ctx.db
       .query("resultSnapshots")
@@ -762,7 +850,7 @@ async function upsertResultSnapshot(
     (snapshot: any) =>
       snapshot.scope === scope &&
       (snapshot.raceNumber ?? null) === (raceNumber ?? null) &&
-      snapshot.title === title,
+      (snapshot.title === title || snapshot.title === legacyTitle),
   );
   const snapshot = {
     regattaId,
@@ -786,63 +874,98 @@ async function upsertResultSnapshot(
   });
 }
 
-async function publishDemoSimulation(ctx: any, regattaId: string, userId: string, options?: any) {
-  const raceOptions = {
+function raceOptionsFromArgs(options?: any) {
+  return {
     raceNumber: options?.raceNumber ?? 1,
     date: options?.date ?? "2026-07-11",
-    startTime: options?.startTime ?? "14:00",
+    startTime: options?.startTime ?? "12:00",
     distanceMiles: options?.distanceMiles ?? 12.4,
   };
-  const groups = await getApprovedFleetEntries(ctx, regattaId);
-  const scoredGroups = groups
+}
+
+function scoreGroupsForRace(groups: any[], raceOptions: any) {
+  return groups
     .map((group) => ({
       fleet: group.fleet,
       entries: group.entries
         .map((item: any, index: number) => ({
           ...item,
-          ...scoreEntry(item.entry, item.certificate, index, raceOptions.distanceMiles),
+          ...scoreEntry(
+            item.entry,
+            item.certificate,
+            index,
+            raceOptions.distanceMiles,
+            raceOptions.raceNumber,
+            group.entries.length,
+          ),
         }))
-        .sort((a: any, b: any) => a.correctedSeconds - b.correctedSeconds),
+        .sort(
+          (a: any, b: any) =>
+            a.correctedSeconds - b.correctedSeconds ||
+            a.entry.boatName.localeCompare(b.entry.boatName),
+        ),
     }))
     .filter((group) => group.entries.length > 0);
+}
+
+function raceResultRows(entries: any[]) {
+  return entries.map((item: any, index: number) => ({
+    rank: index + 1,
+    entryId: item.entry._id,
+    boatName: item.entry.boatName,
+    sailNumber: item.entry.sailNumber,
+    skipper: item.entry.skipper,
+    clubName: item.club?.shortName ?? item.club?.name,
+    elapsedSeconds: item.elapsedSeconds,
+    correctedSeconds: item.correctedSeconds,
+    points: index + 1,
+    raceScores: [String(index + 1)],
+    note: [
+      index === 0 ? "Vencedor da prova" : null,
+      `Tempo real ${formatDuration(item.elapsedSeconds)}`,
+      `corrigido ${formatDuration(item.correctedSeconds)}`,
+      item.certificate?.refNo ? `cert. ${item.certificate.refNo}` : null,
+      typeof item.certificate?.gph === "number"
+        ? `GPH ${item.certificate.gph.toFixed(1)}`
+        : null,
+      typeof item.certificate?.totInshore === "number"
+        ? `ToT ${item.certificate.totInshore.toFixed(3)}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  }));
+}
+
+function totalPoints(scores: number[]) {
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  return scores.length >= 4 ? total - Math.max(...scores) : total;
+}
+
+async function publishDemoSimulation(ctx: any, regattaId: string, userId: string, options?: any) {
+  const raceOptions = raceOptionsFromArgs(options);
+  const groups = await getApprovedFleetEntries(ctx, regattaId);
+  const scoredGroups = scoreGroupsForRace(groups, raceOptions);
   const allScoredEntries = scoredGroups.flatMap((group) => group.entries);
-  await upsertTrackingDemo(ctx, regattaId, userId, allScoredEntries);
+  await upsertTrackingDemo(
+    ctx,
+    regattaId,
+    userId,
+    allScoredEntries,
+    raceOptions.raceNumber,
+  );
 
   const snapshotIds = [];
   for (const group of scoredGroups) {
     await upsertRace(ctx, group.fleet, group.entries, raceOptions);
-    const rows = group.entries.map((item: any, index: number) => ({
-      rank: index + 1,
-      entryId: item.entry._id,
-      boatName: item.entry.boatName,
-      sailNumber: item.entry.sailNumber,
-      skipper: item.entry.skipper,
-      clubName: item.club?.shortName ?? item.club?.name,
-      elapsedSeconds: item.elapsedSeconds,
-      correctedSeconds: item.correctedSeconds,
-      points: index + 1,
-      raceScores: [String(index + 1)],
-      note: [
-        `Tempo real ${formatDuration(item.elapsedSeconds)}`,
-        `corrigido ${formatDuration(item.correctedSeconds)}`,
-        item.certificate?.refNo ? `cert. ${item.certificate.refNo}` : null,
-        typeof item.certificate?.gph === "number"
-          ? `GPH ${item.certificate.gph.toFixed(1)}`
-          : null,
-        typeof item.certificate?.totInshore === "number"
-          ? `ToT ${item.certificate.totInshore.toFixed(3)}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    }));
+    const rows = raceResultRows(group.entries);
     snapshotIds.push(
       await upsertResultSnapshot(
         ctx,
         regattaId,
         userId,
         group.fleet.classCodes[0] ?? "ORC",
-        `Regata ${raceOptions.raceNumber} - tempos simulados`,
+        `Prova ${raceOptions.raceNumber} - tempos simulados`,
         "regata",
         raceOptions.raceNumber,
         rows,
@@ -865,7 +988,116 @@ async function publishDemoSimulation(ctx: any, regattaId: string, userId: string
   return {
     boats: allScoredEntries.length,
     fleets: scoredGroups.length,
+    races: 1,
     snapshots: snapshotIds.filter(Boolean).length,
+  };
+}
+
+async function publishDemoChampionship(ctx: any, regattaId: string, userId: string) {
+  const groups = await getApprovedFleetEntries(ctx, regattaId);
+  const standingsByClass = new Map<string, Map<string, any>>();
+  let trackingEntries: any[] = [];
+  let snapshotCount = 0;
+
+  for (const raceOptions of CHAMPIONSHIP_RACES) {
+    const scoredGroups = scoreGroupsForRace(groups, raceOptions);
+    const allScoredEntries = scoredGroups.flatMap((group) => group.entries);
+    if (raceOptions.raceNumber === 1) {
+      trackingEntries = allScoredEntries;
+    }
+
+    for (const group of scoredGroups) {
+      const classCode = group.fleet.classCodes[0] ?? "ORC";
+      await upsertRace(ctx, group.fleet, group.entries, raceOptions);
+
+      const raceRows = raceResultRows(group.entries);
+      const raceSnapshotId = await upsertResultSnapshot(
+        ctx,
+        regattaId,
+        userId,
+        classCode,
+        `Prova ${raceOptions.raceNumber} - tempos simulados`,
+        "regata",
+        raceOptions.raceNumber,
+        raceRows,
+      );
+      if (raceSnapshotId) {
+        snapshotCount += 1;
+      }
+
+      if (!standingsByClass.has(classCode)) {
+        standingsByClass.set(classCode, new Map());
+      }
+      const classStandings = standingsByClass.get(classCode)!;
+      for (const [index, item] of group.entries.entries()) {
+        const entryId = item.entry._id;
+        const existing = classStandings.get(entryId) ?? {
+          boatName: item.entry.boatName,
+          clubName: item.club?.shortName ?? item.club?.name,
+          correctedSeconds: 0,
+          elapsedSeconds: 0,
+          entryId,
+          sailNumber: item.entry.sailNumber,
+          scores: [],
+          skipper: item.entry.skipper,
+        };
+        existing.elapsedSeconds += item.elapsedSeconds;
+        existing.correctedSeconds += item.correctedSeconds;
+        existing.scores.push(index + 1);
+        classStandings.set(entryId, existing);
+      }
+    }
+  }
+
+  if (trackingEntries.length > 0) {
+    await upsertTrackingDemo(ctx, regattaId, userId, trackingEntries, 1);
+  }
+
+  for (const group of groups) {
+    const classCode = group.fleet.classCodes[0] ?? "ORC";
+    const classStandings = standingsByClass.get(classCode);
+    if (!classStandings) {
+      continue;
+    }
+    const rows = Array.from(classStandings.values())
+      .sort(
+        (a: any, b: any) =>
+          totalPoints(a.scores) - totalPoints(b.scores) ||
+          a.correctedSeconds - b.correctedSeconds,
+      )
+      .map((standing: any, index: number) => ({
+        rank: index + 1,
+        entryId: standing.entryId,
+        boatName: standing.boatName,
+        sailNumber: standing.sailNumber,
+        skipper: standing.skipper,
+        clubName: standing.clubName,
+        elapsedSeconds: standing.elapsedSeconds,
+        correctedSeconds: standing.correctedSeconds,
+        points: totalPoints(standing.scores),
+        raceScores: standing.scores.map(String),
+        note: `12 provas simuladas; descarte aplicado: ${Math.max(...standing.scores)} pts.`,
+      }));
+    const snapshotId = await upsertResultSnapshot(
+      ctx,
+      regattaId,
+      userId,
+      classCode,
+      "Classificacao geral simulada - 12 provas",
+      "geral",
+      undefined,
+      rows,
+    );
+    if (snapshotId) {
+      snapshotCount += 1;
+    }
+  }
+
+  return {
+    boats: groups.flatMap((group) => group.entries).length,
+    fleets: groups.filter((group) => group.entries.length > 0).length,
+    races: CHAMPIONSHIP_RACES.length,
+    snapshots: snapshotCount,
   };
 }
 
@@ -990,7 +1222,7 @@ export const importCompetitionBoats = mutationGeneric({
       }
     }
 
-    const simulation = await publishDemoSimulation(ctx, regattaId, userId);
+    const simulation = await publishDemoChampionship(ctx, regattaId, userId);
 
     return {
       regattaId,
@@ -1020,7 +1252,12 @@ export const generateDemoRace = mutationGeneric({
     await ensureFleet(ctx, regattaId, "ORC_B", "ORC B");
     await ensureBaseContent(ctx, regattaId, userId);
     const entrySync = await syncApprovedEntriesFromBoats(ctx, regattaId);
-    const simulation = await publishDemoSimulation(ctx, regattaId, userId, args);
+    const hasSingleRaceOptions = Boolean(
+      args.raceNumber || args.date || args.startTime || args.distanceMiles,
+    );
+    const simulation = hasSingleRaceOptions
+      ? await publishDemoSimulation(ctx, regattaId, userId, args)
+      : await publishDemoChampionship(ctx, regattaId, userId);
     return {
       regattaId,
       entrySync,
@@ -1043,7 +1280,7 @@ export const syncEntriesFromBoats = mutationGeneric({
     await ensureFleet(ctx, regattaId, "ORC_B", "ORC B");
     await ensureBaseContent(ctx, regattaId, userId);
     const entrySync = await syncApprovedEntriesFromBoats(ctx, regattaId);
-    const simulation = await publishDemoSimulation(ctx, regattaId, userId);
+    const simulation = await publishDemoChampionship(ctx, regattaId, userId);
 
     return {
       regattaId,

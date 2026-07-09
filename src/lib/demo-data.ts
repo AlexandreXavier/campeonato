@@ -4,6 +4,271 @@ import type { PortalData } from "@/lib/portal-types";
 const heroImage =
   "https://images.unsplash.com/photo-1631995037903-c4f8064c48ae?auto=format&fit=crop&w=2200&q=82";
 
+const raceDays = ["2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14"];
+const dailyRaceTimes = ["12:00", "14:30", "17:00"];
+
+const championshipRaceSchedule = raceDays.flatMap((date, dayIndex) =>
+  dailyRaceTimes.map((time, slotIndex) => {
+    const raceNumber = dayIndex * dailyRaceTimes.length + slotIndex + 1;
+    return {
+      id: `schedule-race-${raceNumber}`,
+      date,
+      time,
+      title: `Prova ${raceNumber} - largada prevista`,
+      type: "regata" as const,
+      location: "Campo 1",
+      description:
+        "Prova pontuável ORC na janela diária 12:00-18:00, sujeita a confirmação do comité.",
+      highlight: slotIndex === 0,
+    };
+  }),
+);
+
+const demoEntries = [
+  {
+    id: "entry-a-1",
+    boatName: "Atlântico",
+    classCode: "ORC_A",
+    className: "ORC A",
+    sailNumber: "POR 101",
+    skipper: "Skipper A",
+    clubName: "AVELAS",
+    crew: ["Tripulação A", "Tripulação B"],
+    certificateRef: "ORC-DEMO-A",
+  },
+  {
+    id: "entry-a-2",
+    boatName: "Foz Racing",
+    classCode: "ORC_A",
+    className: "ORC A",
+    sailNumber: "POR 177",
+    skipper: "Skipper B",
+    clubName: "Clube visitante",
+    certificateRef: "ORC-DEMO-B",
+  },
+  {
+    id: "entry-a-3",
+    boatName: "Mar Alto",
+    classCode: "ORC_A",
+    className: "ORC A",
+    sailNumber: "POR 208",
+    skipper: "Skipper D",
+    clubName: "Clube visitante",
+    certificateRef: "ORC-DEMO-D",
+  },
+  {
+    id: "entry-a-4",
+    boatName: "Nortada",
+    classCode: "ORC_A",
+    className: "ORC A",
+    sailNumber: "POR 302",
+    skipper: "Skipper E",
+    clubName: "AVELAS",
+    certificateRef: "ORC-DEMO-E",
+  },
+  {
+    id: "entry-b-1",
+    boatName: "Mondego",
+    classCode: "ORC_B",
+    className: "ORC B",
+    sailNumber: "POR 224",
+    skipper: "Skipper C",
+    clubName: "AVELAS",
+    certificateRef: "ORC-DEMO-C",
+  },
+  {
+    id: "entry-b-2",
+    boatName: "Barlavento",
+    classCode: "ORC_B",
+    className: "ORC B",
+    sailNumber: "POR 241",
+    skipper: "Skipper F",
+    clubName: "Clube visitante",
+    certificateRef: "ORC-DEMO-F",
+  },
+  {
+    id: "entry-b-3",
+    boatName: "Figueira",
+    classCode: "ORC_B",
+    className: "ORC B",
+    sailNumber: "POR 288",
+    skipper: "Skipper G",
+    clubName: "AVELAS",
+    certificateRef: "ORC-DEMO-G",
+  },
+  {
+    id: "entry-b-4",
+    boatName: "Ria",
+    classCode: "ORC_B",
+    className: "ORC B",
+    sailNumber: "POR 319",
+    skipper: "Skipper H",
+    clubName: "Clube visitante",
+    certificateRef: "ORC-DEMO-H",
+  },
+] satisfies PortalData["entries"];
+
+type DemoEntry = (typeof demoEntries)[number];
+type DemoCompetitor = DemoEntry & {
+  correctedBase: number;
+  elapsedBase: number;
+  scores: number[];
+};
+
+const orcACompetitors: DemoCompetitor[] = [
+  {
+    ...demoEntries[0],
+    elapsedBase: 4380,
+    correctedBase: 4210,
+    scores: [1, 3, 2, 4, 1, 2, 3, 1, 4, 2, 1, 3],
+  },
+  {
+    ...demoEntries[1],
+    elapsedBase: 4415,
+    correctedBase: 4240,
+    scores: [2, 1, 4, 1, 3, 4, 1, 3, 2, 1, 3, 2],
+  },
+  {
+    ...demoEntries[2],
+    elapsedBase: 4440,
+    correctedBase: 4185,
+    scores: [3, 2, 1, 3, 2, 1, 4, 2, 1, 4, 2, 1],
+  },
+  {
+    ...demoEntries[3],
+    elapsedBase: 4505,
+    correctedBase: 4305,
+    scores: [4, 4, 3, 2, 4, 3, 2, 4, 3, 3, 4, 4],
+  },
+];
+
+const orcBCompetitors: DemoCompetitor[] = [
+  {
+    ...demoEntries[4],
+    elapsedBase: 4690,
+    correctedBase: 4470,
+    scores: [2, 1, 3, 1, 4, 2, 1, 3, 2, 1, 4, 2],
+  },
+  {
+    ...demoEntries[5],
+    elapsedBase: 4710,
+    correctedBase: 4500,
+    scores: [1, 3, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3],
+  },
+  {
+    ...demoEntries[6],
+    elapsedBase: 4735,
+    correctedBase: 4465,
+    scores: [3, 2, 1, 3, 3, 1, 4, 2, 1, 4, 2, 1],
+  },
+  {
+    ...demoEntries[7],
+    elapsedBase: 4790,
+    correctedBase: 4555,
+    scores: [4, 4, 4, 2, 2, 4, 3, 4, 3, 3, 3, 4],
+  },
+];
+
+function racePublishedAt(raceNumber: number) {
+  const day = raceDays[Math.floor((raceNumber - 1) / dailyRaceTimes.length)];
+  return `${day}T18:30:00.000Z`;
+}
+
+function sumScores(scores: number[]) {
+  return scores.reduce((total, score) => total + score, 0);
+}
+
+function scoreWithDiscard(scores: number[]) {
+  return sumScores(scores) - Math.max(...scores);
+}
+
+function raceRows(competitors: DemoCompetitor[], raceNumber: number) {
+  const winner = competitors.find((boat) => boat.scores[raceNumber - 1] === 1);
+  return [...competitors]
+    .sort((a, b) => a.scores[raceNumber - 1] - b.scores[raceNumber - 1])
+    .map((entry, index) => {
+      const rank = entry.scores[raceNumber - 1];
+      const correctedSeconds = entry.correctedBase + raceNumber * 64 + (rank - 1) * 58;
+      return {
+        rank,
+        boatName: entry.boatName,
+        sailNumber: entry.sailNumber,
+        skipper: entry.skipper,
+        clubName: entry.clubName,
+        elapsedSeconds: correctedSeconds + 180 + index * 17,
+        correctedSeconds,
+        points: rank,
+        raceScores: [String(rank)],
+        note: index === 0 ? `Vencedor da prova: ${winner?.boatName ?? entry.boatName}.` : undefined,
+      };
+    });
+}
+
+function generalRows(competitors: DemoCompetitor[]) {
+  return [...competitors]
+    .sort((a, b) => scoreWithDiscard(a.scores) - scoreWithDiscard(b.scores))
+    .map((entry, index) => ({
+      rank: index + 1,
+      boatName: entry.boatName,
+      sailNumber: entry.sailNumber,
+      skipper: entry.skipper,
+      clubName: entry.clubName,
+      points: scoreWithDiscard(entry.scores),
+      raceScores: entry.scores.map(String),
+      note: `Total ${sumScores(entry.scores)} pts; descarte aplicado: ${Math.max(...entry.scores)} pts.`,
+    }));
+}
+
+function buildDemoResults() {
+  const raceResults = Array.from({ length: 12 }, (_, index) => {
+    const raceNumber = index + 1;
+    return [
+      {
+        id: `result-race-${raceNumber}-a`,
+        title: `Prova ${raceNumber} - tempos simulados`,
+        classCode: "ORC_A",
+        className: "ORC A",
+        scope: "regata" as const,
+        raceNumber,
+        publishedAt: racePublishedAt(raceNumber),
+        rows: raceRows(orcACompetitors, raceNumber),
+      },
+      {
+        id: `result-race-${raceNumber}-b`,
+        title: `Prova ${raceNumber} - tempos simulados`,
+        classCode: "ORC_B",
+        className: "ORC B",
+        scope: "regata" as const,
+        raceNumber,
+        publishedAt: racePublishedAt(raceNumber),
+        rows: raceRows(orcBCompetitors, raceNumber),
+      },
+    ];
+  }).flat();
+
+  return [
+    {
+      id: "result-general-a",
+      title: "Classificação geral provisória - 12 provas",
+      classCode: "ORC_A",
+      className: "ORC A",
+      scope: "geral" as const,
+      publishedAt: "2026-07-14T19:00:00.000Z",
+      rows: generalRows(orcACompetitors),
+    },
+    {
+      id: "result-general-b",
+      title: "Classificação geral provisória - 12 provas",
+      classCode: "ORC_B",
+      className: "ORC B",
+      scope: "geral" as const,
+      publishedAt: "2026-07-14T19:00:00.000Z",
+      rows: generalRows(orcBCompetitors),
+    },
+    ...raceResults.reverse(),
+  ];
+}
+
 export const defaultPortalData: PortalData = {
   event: {
     slug: EVENT_SLUG,
@@ -57,38 +322,11 @@ export const defaultPortalData: PortalData = {
       description: "Confirmação de presença, documentação e acreditações.",
       highlight: true,
     },
-    {
-      id: "schedule-2",
-      date: "2026-07-11",
-      time: "14:00",
-      title: "Regata 1 prevista",
-      type: "regata",
-      location: "Campo 1",
-      description: "Primeira largada sujeita a aviso do comité.",
-      highlight: true,
-    },
-    {
-      id: "schedule-3",
-      date: "2026-07-12",
-      time: "12:00",
-      title: "Regatas barlavento/sotavento",
-      type: "regata",
-      location: "Campo 1",
-      description: "Programa desportivo publicado pelo comité de regatas.",
-    },
-    {
-      id: "schedule-4",
-      date: "2026-07-13",
-      time: "12:00",
-      title: "Regatas costeiras ORC",
-      type: "regata",
-      location: "Campo 1",
-      description: "Percurso definido nas instruções e avisos do dia.",
-    },
+    ...championshipRaceSchedule,
     {
       id: "schedule-5",
       date: "2026-07-14",
-      time: "17:30",
+      time: "18:30",
       title: "Cerimónia de entrega de prémios",
       type: "cerimonia",
       location: "AVELAS",
@@ -114,88 +352,8 @@ export const defaultPortalData: PortalData = {
       publishedAt: "2026-07-08T17:30:00.000Z",
     },
   ],
-  entries: [
-    {
-      id: "entry-a-1",
-      boatName: "Atlântico",
-      classCode: "ORC_A",
-      className: "ORC A",
-      sailNumber: "POR 101",
-      skipper: "Skipper A",
-      clubName: "AVELAS",
-      crew: ["Tripulação A", "Tripulação B"],
-      certificateRef: "ORC-DEMO-A",
-    },
-    {
-      id: "entry-a-2",
-      boatName: "Foz Racing",
-      classCode: "ORC_A",
-      className: "ORC A",
-      sailNumber: "POR 177",
-      skipper: "Skipper B",
-      clubName: "Clube visitante",
-      certificateRef: "ORC-DEMO-B",
-    },
-    {
-      id: "entry-b-1",
-      boatName: "Mondego",
-      classCode: "ORC_B",
-      className: "ORC B",
-      sailNumber: "POR 224",
-      skipper: "Skipper C",
-      clubName: "AVELAS",
-      certificateRef: "ORC-DEMO-C",
-    },
-  ],
-  results: [
-    {
-      id: "result-general-a",
-      title: "Classificação geral provisória",
-      classCode: "ORC_A",
-      className: "ORC A",
-      scope: "geral",
-      publishedAt: "2026-07-11T19:00:00.000Z",
-      rows: [
-        {
-          rank: 1,
-          boatName: "Atlântico",
-          sailNumber: "POR 101",
-          skipper: "Skipper A",
-          clubName: "AVELAS",
-          points: 2,
-          raceScores: ["1", "1"],
-        },
-        {
-          rank: 2,
-          boatName: "Foz Racing",
-          sailNumber: "POR 177",
-          skipper: "Skipper B",
-          clubName: "Clube visitante",
-          points: 5,
-          raceScores: ["2", "3"],
-        },
-      ],
-    },
-    {
-      id: "result-general-b",
-      title: "Classificação geral provisória",
-      classCode: "ORC_B",
-      className: "ORC B",
-      scope: "geral",
-      publishedAt: "2026-07-11T19:00:00.000Z",
-      rows: [
-        {
-          rank: 1,
-          boatName: "Mondego",
-          sailNumber: "POR 224",
-          skipper: "Skipper C",
-          clubName: "AVELAS",
-          points: 3,
-          raceScores: ["1", "2"],
-        },
-      ],
-    },
-  ],
+  entries: demoEntries,
+  results: buildDemoResults(),
   news: [
     {
       id: "news-1",

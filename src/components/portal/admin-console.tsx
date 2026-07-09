@@ -744,10 +744,10 @@ function TrackingForm({ setMessage }: { setMessage: (message: string | null) => 
           onClick={async () => {
             const result = (await syncFromBoats({})) as {
               entrySync?: { entriesInserted?: number; entriesUpdated?: number };
-              simulation?: { boats?: number; snapshots?: number };
+              simulation?: { boats?: number; races?: number; snapshots?: number };
             };
             setMessage(
-              `Barcos sincronizados: ${result.entrySync?.entriesInserted ?? 0} novas inscrições, ${result.entrySync?.entriesUpdated ?? 0} atualizadas; ${result.simulation?.boats ?? 0} barcos na simulação.`,
+              `Barcos sincronizados: ${result.entrySync?.entriesInserted ?? 0} novas inscrições, ${result.entrySync?.entriesUpdated ?? 0} atualizadas; ${result.simulation?.boats ?? 0} barcos, ${result.simulation?.races ?? 0} provas e ${result.simulation?.snapshots ?? 0} snapshots gerados.`,
             );
           }}
         >

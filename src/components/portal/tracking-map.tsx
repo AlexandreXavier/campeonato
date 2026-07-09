@@ -1,6 +1,7 @@
 "use client";
 
 import maplibregl, {
+  type ExpressionSpecification,
   type GeoJSONSource,
   type RequestParameters,
   type StyleSpecification,
@@ -29,6 +30,19 @@ type CourseMark = {
 };
 
 type EntryLookup = Map<string, Entry>;
+
+const boatPalette = [
+  { iconName: "orc-boat-red", sail: "#ef4444", accent: "#991b1b", trail: "#ef4444" },
+  { iconName: "orc-boat-yellow", sail: "#facc15", accent: "#a16207", trail: "#fde047" },
+  { iconName: "orc-boat-blue", sail: "#38bdf8", accent: "#0369a1", trail: "#2563eb" },
+  { iconName: "orc-boat-green", sail: "#22c55e", accent: "#166534", trail: "#22c55e" },
+  { iconName: "orc-boat-pink", sail: "#e879f9", accent: "#a21caf", trail: "#db2777" },
+  { iconName: "orc-boat-white", sail: "#f8fafc", accent: "#64748b", trail: "#f8fafc" },
+  { iconName: "orc-boat-black", sail: "#111827", accent: "#f8fafc", trail: "#020617" },
+  { iconName: "orc-boat-orange", sail: "#fb923c", accent: "#9a3412", trail: "#f97316" },
+] as const;
+
+const installingTrackingLayers = new WeakSet<maplibregl.Map>();
 
 const campo1Course: Array<[number, number]> = [
   [-8.926, 40.121],
@@ -71,23 +85,92 @@ const fallbackRasterStyle: StyleSpecification = {
   ],
 };
 
+function stableColorIndex(position: Pick<TrackingPosition, "entryId" | "label" | "sailNumber">) {
+  const key = `${position.entryId ?? ""}-${position.sailNumber ?? ""}-${position.label}`;
+  const total = [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return total % boatPalette.length;
+}
+
+function boatColorMatchExpression(
+  property: "colorIndex",
+  field: "trail" | "sail",
+): ExpressionSpecification {
+  return [
+    "match",
+    ["get", property],
+    ...boatPalette.flatMap((color, index) => [index, color[field]]),
+    boatPalette[0][field],
+  ] as unknown as ExpressionSpecification;
+}
+
 function positionsToFeatureCollection(positions: TrackingPosition[]) {
   return {
     type: "FeatureCollection" as const,
-    features: positions.map((position) => ({
-      type: "Feature" as const,
-      geometry: {
-        type: "Point" as const,
-        coordinates: [position.lng, position.lat],
-      },
-      properties: {
-        label: position.label,
-        classCode: position.classCode,
-        sailNumber: position.sailNumber ?? "",
-        sog: position.sog ?? 0,
-        heading: position.heading ?? 0,
-      },
-    })),
+    features: positions.map((position) => {
+      const colorIndex = stableColorIndex(position);
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [position.lng, position.lat],
+        },
+        properties: {
+          label: position.label,
+          classCode: position.classCode,
+          sailNumber: position.sailNumber ?? "",
+          sog: position.sog ?? 0,
+          heading: position.heading ?? 0,
+          colorIndex,
+          iconName: boatPalette[colorIndex].iconName,
+        },
+      };
+    }),
+  };
+}
+
+function framesToTrailFeatureCollection(frames: TrackingDemo["frames"], frameIndex: number) {
+  const tracks = new Map<
+    string,
+    {
+      colorIndex: number;
+      coordinates: Array<[number, number]>;
+      label: string;
+    }
+  >();
+  const trailStart = Math.max(0, frameIndex - 4);
+  const visibleFrames = frames.slice(trailStart, frameIndex + 1);
+
+  visibleFrames.forEach((frame) => {
+    frame.positions.forEach((position) => {
+      const key = position.entryId ?? position.sailNumber ?? position.label;
+      const existing = tracks.get(key);
+      const track =
+        existing ??
+        {
+          colorIndex: stableColorIndex(position),
+          coordinates: [],
+          label: position.label,
+        };
+      track.coordinates.push([position.lng, position.lat]);
+      tracks.set(key, track);
+    });
+  });
+
+  return {
+    type: "FeatureCollection" as const,
+    features: Array.from(tracks.values())
+      .filter((track) => track.coordinates.length > 1)
+      .map((track) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: track.coordinates,
+        },
+        properties: {
+          colorIndex: track.colorIndex,
+          label: track.label,
+        },
+      })),
   };
 }
 
@@ -236,6 +319,102 @@ function formatRating(value?: number | null, digits = 3) {
   return typeof value === "number" ? value.toFixed(digits) : "n/d";
 }
 
+function createBoatIcon(sailColor: string, accentColor: string) {
+  const size = 96;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return new ImageData(size, size);
+
+  ctx.translate(size / 2, size / 2);
+
+  ctx.save();
+  ctx.globalAlpha = 0.68;
+  ctx.strokeStyle = "rgba(255,255,255,0.88)";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  [
+    [-22, 22, -36, 35],
+    [-10, 27, -18, 43],
+    [10, 27, 18, 43],
+    [22, 22, 36, 35],
+  ].forEach(([x1, y1, x2, y2]) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  ctx.save();
+  ctx.shadowColor = "rgba(15,23,42,0.46)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -36);
+  ctx.bezierCurveTo(13, -23, 16, 12, 10, 30);
+  ctx.quadraticCurveTo(0, 38, -10, 30);
+  ctx.bezierCurveTo(-16, 12, -13, -23, 0, -36);
+  ctx.closePath();
+  ctx.fillStyle = "#f8fafc";
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(15,23,42,0.86)";
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.moveTo(2, -31);
+  ctx.lineTo(22, 9);
+  ctx.lineTo(5, 20);
+  ctx.closePath();
+  ctx.fillStyle = sailColor;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = accentColor;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(-2, -27);
+  ctx.lineTo(-19, 13);
+  ctx.lineTo(-4, 21);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(226,232,240,0.96)";
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(71,85,105,0.82)";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0, -32);
+  ctx.lineTo(0, 25);
+  ctx.strokeStyle = "#0f172a";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 5, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(15,23,42,0.92)";
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.stroke();
+
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function registerBoatIcons(map: maplibregl.Map) {
+  boatPalette.forEach((color) => {
+    if (!map.hasImage(color.iconName)) {
+      map.addImage(color.iconName, createBoatIcon(color.sail, color.accent), {
+        pixelRatio: 2,
+      });
+    }
+  });
+}
+
 function fitMapToCourse(map: maplibregl.Map, positions: TrackingPosition[]) {
   const bounds = new maplibregl.LngLatBounds();
   campo1Course.forEach(([lng, lat]) => bounds.extend([lng, lat]));
@@ -254,122 +433,174 @@ function fitMapToCourse(map: maplibregl.Map, positions: TrackingPosition[]) {
   });
 }
 
-function addTrackingLayers(map: maplibregl.Map, positions: TrackingPosition[]) {
-  if (!map.isStyleLoaded() || map.getSource("boats")) return;
+function addTrackingLayers(
+  map: maplibregl.Map,
+  positions: TrackingPosition[],
+  frames: TrackingDemo["frames"],
+) {
+  if (
+    !map.isStyleLoaded() ||
+    installingTrackingLayers.has(map) ||
+    map.getSource("course") ||
+    map.getSource("boats")
+  ) {
+    return;
+  }
 
-  map.addSource("course", {
-    type: "geojson",
-    data: courseToFeatureCollection(),
-  });
+  installingTrackingLayers.add(map);
 
-  map.addLayer({
-    id: "course-line-shadow",
-    type: "line",
-    source: "course",
-    paint: {
-      "line-color": "#082f49",
-      "line-width": 9,
-      "line-opacity": 0.48,
-    },
-  });
+  try {
+    registerBoatIcons(map);
 
-  map.addLayer({
-    id: "course-line",
-    type: "line",
-    source: "course",
-    paint: {
-      "line-color": "#22d3ee",
-      "line-width": 4,
-      "line-opacity": 0.95,
-      "line-dasharray": [1.5, 0.9],
-    },
-  });
+    map.addSource("course", {
+      type: "geojson",
+      data: courseToFeatureCollection(),
+    });
 
-  map.addSource("marks", {
-    type: "geojson",
-    data: marksToFeatureCollection(),
-  });
+    map.addLayer({
+      id: "course-line-shadow",
+      type: "line",
+      source: "course",
+      paint: {
+        "line-color": "#082f49",
+        "line-width": 9,
+        "line-opacity": 0.48,
+      },
+    });
 
-  map.addLayer({
-    id: "course-marks",
-    type: "circle",
-    source: "marks",
-    paint: {
-      "circle-color": [
-        "match",
-        ["get", "kind"],
-        "start",
-        "#facc15",
-        "finish",
-        "#fb923c",
-        "#ef4444",
-      ],
-      "circle-radius": ["match", ["get", "kind"], "mark", 8, 10],
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 2,
-    },
-  });
+    map.addLayer({
+      id: "course-line",
+      type: "line",
+      source: "course",
+      paint: {
+        "line-color": "#22d3ee",
+        "line-width": 4,
+        "line-opacity": 0.95,
+        "line-dasharray": [1.5, 0.9],
+      },
+    });
 
-  map.addLayer({
-    id: "course-mark-labels",
-    type: "symbol",
-    source: "marks",
-    layout: {
-      "text-field": ["get", "label"],
-      "text-size": 12,
-      "text-offset": [0, 1.35],
-      "text-anchor": "top",
-      "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-    },
-    paint: {
-      "text-color": "#ffffff",
-      "text-halo-color": "#082f49",
-      "text-halo-width": 2,
-    },
-  });
+    map.addSource("marks", {
+      type: "geojson",
+      data: marksToFeatureCollection(),
+    });
 
-  map.addSource("boats", {
-    type: "geojson",
-    data: positionsToFeatureCollection(positions),
-  });
+    map.addLayer({
+      id: "course-marks",
+      type: "circle",
+      source: "marks",
+      paint: {
+        "circle-color": [
+          "match",
+          ["get", "kind"],
+          "start",
+          "#facc15",
+          "finish",
+          "#fb923c",
+          "#ef4444",
+        ],
+        "circle-radius": ["match", ["get", "kind"], "mark", 8, 10],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2,
+      },
+    });
 
-  map.addLayer({
-    id: "boats",
-    type: "circle",
-    source: "boats",
-    paint: {
-      "circle-color": [
-        "match",
-        ["get", "classCode"],
-        "ORC_A",
-        "#0f766e",
-        "ORC_B",
-        "#f97316",
-        "#0ea5e9",
-      ],
-      "circle-radius": 8,
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 3,
-    },
-  });
+    map.addLayer({
+      id: "course-mark-labels",
+      type: "symbol",
+      source: "marks",
+      layout: {
+        "text-field": ["get", "label"],
+        "text-size": 12,
+        "text-offset": [0, 1.35],
+        "text-anchor": "top",
+        "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#082f49",
+        "text-halo-width": 2,
+      },
+    });
 
-  map.addLayer({
-    id: "boat-labels",
-    type: "symbol",
-    source: "boats",
-    layout: {
-      "text-field": ["get", "label"],
-      "text-size": 12,
-      "text-offset": [0, 1.35],
-      "text-anchor": "top",
-      "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
-    },
-    paint: {
-      "text-color": "#ffffff",
-      "text-halo-color": "#0f172a",
-      "text-halo-width": 2,
-    },
-  });
+    map.addSource("boat-trails", {
+      type: "geojson",
+      data: framesToTrailFeatureCollection(frames, 0),
+    });
+
+    map.addLayer({
+      id: "boat-trails-shadow",
+      type: "line",
+      source: "boat-trails",
+      paint: {
+        "line-color": "#020617",
+        "line-width": 4,
+        "line-opacity": 0.32,
+      },
+    });
+
+    map.addLayer({
+      id: "boat-trails",
+      type: "line",
+      source: "boat-trails",
+      paint: {
+        "line-color": boatColorMatchExpression("colorIndex", "trail"),
+        "line-width": 1.8,
+        "line-opacity": 0.78,
+      },
+    });
+
+    map.addSource("boats", {
+      type: "geojson",
+      data: positionsToFeatureCollection(positions),
+    });
+
+    map.addLayer({
+      id: "boat-halo",
+      type: "circle",
+      source: "boats",
+      paint: {
+        "circle-blur": 0.65,
+        "circle-color": "#f8fafc",
+        "circle-opacity": 0.54,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 17],
+      },
+    });
+
+    map.addLayer({
+      id: "boats",
+      type: "symbol",
+      source: "boats",
+      layout: {
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+        "icon-image": ["get", "iconName"],
+        "icon-rotate": ["get", "heading"],
+        "icon-rotation-alignment": "map",
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.4, 14, 0.78],
+      },
+    });
+
+    map.addLayer({
+      id: "boat-labels",
+      type: "symbol",
+      source: "boats",
+      layout: {
+        "text-field": ["get", "label"],
+        "text-size": 11,
+        "text-offset": [0, 2.15],
+        "text-anchor": "top",
+        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#0f172a",
+        "text-halo-width": 2,
+      },
+    });
+  } finally {
+    installingTrackingLayers.delete(map);
+  }
 }
 
 export function TrackingMap({ demo, entries, immersive = false, styleUrl }: TrackingMapProps) {
@@ -387,6 +618,10 @@ export function TrackingMap({ demo, entries, immersive = false, styleUrl }: Trac
   const latestPositions = useMemo(
     () => positionsToFeatureCollection(currentPositions),
     [currentPositions],
+  );
+  const latestTrails = useMemo(
+    () => framesToTrailFeatureCollection(frames, frameIndex),
+    [frameIndex, frames],
   );
   const entryLookup = useMemo(() => buildEntryLookup(entries), [entries]);
 
@@ -410,7 +645,7 @@ export function TrackingMap({ demo, entries, immersive = false, styleUrl }: Trac
       if (!map.isStyleLoaded()) return;
       loaded = true;
       setUsingFallbackStyle(fallbackApplied);
-      addTrackingLayers(map, frames[0]?.positions ?? []);
+      addTrackingLayers(map, frames[0]?.positions ?? [], frames);
       fitMapToCourse(map, frames[0]?.positions ?? []);
       window.setTimeout(() => map.resize(), 100);
     };
@@ -458,8 +693,10 @@ export function TrackingMap({ demo, entries, immersive = false, styleUrl }: Trac
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
+    const trailSource = map.getSource("boat-trails") as GeoJSONSource | undefined;
+    if (trailSource) trailSource.setData(latestTrails);
     fitMapToCourse(map, frames[0]?.positions ?? []);
-  }, [frames]);
+  }, [frames, latestTrails]);
 
   if (!demo || frames.length === 0) {
     return (

@@ -366,7 +366,15 @@ async function readPortal(ctx: any, slug: string) {
         publishedAt: snapshot.publishedAt,
         rows: snapshot.rows,
       }))
-      .sort((a: any, b: any) => b.publishedAt.localeCompare(a.publishedAt)),
+      .sort((a: any, b: any) => {
+        if (a.scope !== b.scope) {
+          return a.scope === "geral" ? -1 : 1;
+        }
+        if (a.scope === "regata") {
+          return (b.raceNumber ?? 0) - (a.raceNumber ?? 0);
+        }
+        return b.publishedAt.localeCompare(a.publishedAt);
+      }),
     news: news
       .map((post: any) => ({
         id: post._id,

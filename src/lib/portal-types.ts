@@ -7,6 +7,7 @@ export type PortalMode =
   | "tracking"
   | "noticias"
   | "media"
+  | "report"
   | "comite";
 
 export type CommitteeMember = {

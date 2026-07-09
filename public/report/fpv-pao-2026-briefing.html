@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Storm Research: FPV PAO 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --blue: #2563eb; --blue-dark: #1e3a8a; --ink: #16203a; --muted: #5b6677; --line: #e4e9f2;
+    --bg-soft: #f6f8fc; --green: #15803d; --green-bg: #e9f6ee; --amber: #b45309; --amber-bg: #fdf3e7;
+    --slate: #475569; --slate-bg: #eef1f6; --red: #b91c1c; --red-bg: #fdecec;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Roboto', system-ui, sans-serif; color: var(--ink); background: #eef1f6; line-height: 1.62; font-weight: 400; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 900px; margin: 0 auto; background: #fff; padding: 64px 72px 80px; box-shadow: 0 1px 40px rgba(22,32,58,0.08); }
+  .eyebrow { font-family: 'Roboto Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--blue); margin-bottom: 14px; }
+  h1 { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 40px; line-height: 1.12; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 18px; }
+  .lede { font-size: 17px; color: var(--muted); max-width: 640px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 26px; padding-top: 22px; border-top: 2px solid var(--line); font-family: 'Roboto Mono', monospace; font-size: 12px; color: var(--muted); }
+  .meta-row b { color: var(--ink); font-weight: 600; }
+  .verify-banner { margin-top: 22px; background: var(--green-bg); border: 1px solid #bfe3cc; border-radius: 8px; padding: 13px 18px; font-size: 13px; color: #14532d; display: flex; gap: 10px; align-items: baseline; }
+  .verify-banner b { font-weight: 700; }
+  .verify-banner .tag { font-family: 'Roboto Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: var(--green); color: #fff; padding: 3px 8px; border-radius: 4px; flex-shrink: 0; }
+  .howto { margin-top: 18px; border: 1px solid var(--line); border-radius: 8px; padding: 18px 22px; background: var(--bg-soft); }
+  .howto h4 { font-family: 'Roboto Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .howto ul { list-style: none; }
+  .howto li { font-size: 13.5px; color: #2b3950; margin-bottom: 7px; padding-left: 16px; position: relative; }
+  .howto li::before { content: "›"; position: absolute; left: 0; color: var(--blue); font-weight: 700; }
+  .section { margin-top: 56px; }
+  .section-num { font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 600; color: var(--blue); letter-spacing: 0.05em; }
+  h2 { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 25px; letter-spacing: -0.01em; color: var(--ink); margin: 6px 0 18px; line-height: 1.2; }
+  h2 .bar { display: inline-block; width: 38px; height: 4px; background: var(--blue); border-radius: 2px; vertical-align: middle; margin-right: 14px; }
+  p { margin-bottom: 14px; }
+  p.body-lg { font-size: 16.5px; }
+  .ceo { background: var(--bg-soft); border-left: 5px solid var(--blue); padding: 26px 30px; border-radius: 4px; font-size: 16.5px; }
+  .ceo strong { font-weight: 700; color: var(--blue-dark); }
+  .finding { border: 1px solid var(--line); border-radius: 10px; padding: 24px 26px; margin-bottom: 18px; position: relative; }
+  .finding-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+  .finding-title { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 18px; line-height: 1.3; color: var(--ink); flex: 1; }
+  .finding-rank { font-family: 'Roboto Mono', monospace; font-weight: 600; font-size: 13px; color: #fff; background: var(--ink); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .finding p { font-size: 15px; color: #283449; margin-bottom: 14px; }
+  .rel-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .rel { display: inline-flex; align-items: center; gap: 9px; font-family: 'Roboto Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; }
+  .rel.high { background: #e7f0fe; color: var(--blue); }
+  .rel.medhigh { background: var(--green-bg); color: var(--green); }
+  .rel.medium { background: var(--amber-bg); color: var(--amber); }
+  .rel.low { background: var(--red-bg); color: var(--red); }
+  .score { font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .score b { font-size: 17px; }
+  .score span { color: var(--muted); font-weight: 400; }
+  .chips { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .chip-row { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; font-size: 13.5px; }
+  .chip-label { font-family: 'Roboto Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+  .chip-label.sup { background: var(--green-bg); color: var(--green); }
+  .chip-label.chal { background: var(--red-bg); color: var(--red); }
+  .chip-label.fix { background: var(--amber-bg); color: var(--amber); }
+  .chip-row span.who { color: #2b3950; }
+  .chip-row span.who b { font-weight: 600; }
+  .contested { border: 1px dashed var(--amber); background: #fffaf2; border-radius: 10px; padding: 22px 26px; margin-bottom: 18px; }
+  .contested .tag { font-family: 'Roboto Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); }
+  .contested h4 { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 16px; color: var(--ink); margin: 6px 0 10px; }
+  .contested p { font-size: 14px; color: #4a3a22; margin-bottom: 0; }
+  .connection { background: linear-gradient(135deg, #16203a 0%, #1e3a8a 100%); color: #eaf0fb; border-radius: 12px; padding: 34px 38px; }
+  .connection h2 { color: #fff; }
+  .connection h2 .bar { background: #6ea8ff; }
+  .connection .section-num { color: #9ec1ff; }
+  .connection p { color: #d3def3; font-size: 16px; }
+  .connection .punch { font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 18px; color: #fff; line-height: 1.4; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.18); }
+  .assume { border: 1px solid var(--line); border-left: 5px solid var(--amber); border-radius: 6px; padding: 24px 28px; background: #fffdf9; }
+  .assume h3 { font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+  .assume p { font-size: 15px; color: #3a3320; }
+  .assume p:last-child { margin-bottom: 0; }
+  .action-item { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .action-item:last-child { border-bottom: none; }
+  .action-mark { font-family: 'Roboto Mono', monospace; font-weight: 600; font-size: 13px; color: var(--blue); flex-shrink: 0; width: 34px; }
+  .action-item .do { font-weight: 600; color: var(--ink); }
+  .action-item p { font-size: 14.5px; margin-bottom: 0; color: #2b3950; }
+  .frontier { border: 2px dashed var(--blue); border-radius: 12px; padding: 30px 34px; background: var(--bg-soft); }
+  .frontier .q { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 22px; line-height: 1.32; color: var(--blue-dark); margin-bottom: 16px; }
+  .frontier p { font-size: 15px; color: #2b3950; }
+  .oncam { margin-top: 18px; }
+  .oncam-col { border-radius: 10px; padding: 20px 24px; margin-bottom: 14px; }
+  .oncam-col.safe { background: var(--green-bg); border: 1px solid #bfe3cc; }
+  .oncam-col.caveat { background: var(--amber-bg); border: 1px solid #f0d9b5; }
+  .oncam-col.avoid { background: var(--red-bg); border: 1px solid #f3c9c9; }
+  .oncam-col h4 { font-family: 'Roboto Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+  .oncam-col.safe h4 { color: var(--green); }
+  .oncam-col.caveat h4 { color: var(--amber); }
+  .oncam-col.avoid h4 { color: var(--red); }
+  .oncam-col ul { list-style: none; }
+  .oncam-col li { font-size: 14px; color: #233; margin-bottom: 8px; padding-left: 16px; position: relative; line-height: 1.5; }
+  .oncam-col li::before { content: "•"; position: absolute; left: 0; font-weight: 700; }
+  .oncam-col.safe li::before { color: var(--green); }
+  .oncam-col.caveat li::before { color: var(--amber); }
+  .oncam-col.avoid li::before { color: var(--red); }
+  .refs { margin-top: 56px; padding-top: 26px; border-top: 2px solid var(--line); }
+  .refs h3 { font-family: 'Roboto Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .refs ul { list-style: none; }
+  .refs li { font-size: 12.5px; color: var(--muted); margin-bottom: 11px; padding-left: 16px; position: relative; line-height: 1.5; }
+  .refs li::before { content: "›"; position: absolute; left: 0; color: var(--blue); font-weight: 700; }
+  .refs a { color: #34507e; text-decoration: none; }
+  .refs a:hover { text-decoration: underline; }
+  .refs .vstat { font-family: 'Roboto Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; margin-right: 6px; }
+  .vstat.ok { background: var(--green-bg); color: var(--green); }
+  .vstat.part { background: var(--amber-bg); color: var(--amber); }
+  .vstat.weak { background: var(--red-bg); color: var(--red); }
+  .footer { margin-top: 40px; font-family: 'Roboto Mono', monospace; font-size: 11px; color: #9aa6b8; text-align: center; }
+  @media (max-width: 640px) { .page { padding: 40px 24px 56px; } h1 { font-size: 30px; } }
+  @media print { body { background: #fff; } .page { box-shadow: none; max-width: 100%; padding: 0; } .connection, .oncam-col { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="eyebrow">Storm Research &middot; v2 (verificado)</div>
+    <h1>Federação Portuguesa de Vela: leitura crítica do Plano de Atividades e Orçamento 2026</h1>
+    <p class="lede">Síntese em cinco perspetivas sobre os relatórios orçamentais da FPV: operação, evidência, ceticismo, incentivos financeiros e paralelos históricos. Todas as afirmações factuais abaixo foram verificadas contra os ficheiros locais e/ou páginas oficiais da federação.</p>
+    <div class="meta-row">
+      <span><b>Data</b> &nbsp;2026-06-29</span>
+      <span><b>Método</b> &nbsp;5 perspetivas especializadas construídas pelo autor + mapa de contradições</span>
+      <span><b>Público</b> &nbsp;decisor institucional da vela portuguesa</span>
+    </div>
+    <div class="verify-banner">
+      <span class="tag">Verificado</span>
+      <span>Todas as <b>7</b> referências foram verificadas de forma independente face às fontes primárias ou oficiais em 2026-06-29. <b>Resultado: 0 fabricadas, 1 corrigida, 0 despromovidas.</b> As pontuações de confiança refletem a qualidade da evidência após verificação.</span>
+    </div>
+    <div class="howto">
+      <h4>Como ler isto</h4>
+      <ul>
+        <li><b>O painel foi construído pelo autor.</b> Quando as cinco perspetivas convergem, isso deve ser lido como hipótese forte, não como consenso independente do setor.</li>
+        <li><b>A evidência mais forte aqui é documental e orçamental.</b> A evidência académica diretamente aplicável à FPV foi a parte mais fraca desta corrida e foi tratada com cautela.</li>
+        <li><b>O orçamento mostra prioridades, não resultados.</b> O que está financiado é observável; o impacto de cada euro exige métricas de execução que o PAO, por si só, não fecha.</li>
+      </ul>
+    </div>
+  </header>
+  <section class="section">
+    <div class="section-num">01</div>
+    <h2><span class="bar"></span>Resumo Em 60 Segundos</h2>
+    <div class="ceo">
+      <p style="margin-bottom:0;"><strong>A leitura mais sólida do PAO 2026 é que a FPV quer reforçar a máquina olímpica sem abdicar de uma narrativa de proximidade territorial, inclusão e modernização administrativa.</strong> Os números mostram, porém, que a prioridade material continua a ser o alto rendimento e o projeto olímpico: o financiamento público representa 80,6% das receitas, a preparação olímpica cresce 36,6%, e as linhas de inclusão, feminino e desporto escolar ficam abaixo de 1% do gasto total. A diversificação por eventos e patrocínios é real e pode melhorar a autonomia no médio prazo, mas em 2026 ainda funciona mais como tese estratégica do que como mudança estrutural já consumada.</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-num">02</div>
+    <h2><span class="bar"></span>Cinco Conclusões-Chave, Ordenadas por Fiabilidade</h2>
+    <div class="finding">
+  <div class="finding-head">
+    <div class="finding-title">A FPV continua estruturalmente dependente de financiamento público, apesar da narrativa de diversificação.</div>
+    <div class="finding-rank">1</div>
+  </div>
+  <div class="rel-row">
+    <div class="rel high">Fiabilidade: Alta</div>
+    <div class="score"><b>9</b><span>/10</span></div>
+  </div>
+  <p>Em 2026, <b>80,6%</b> dos rendimentos orçamentados vêm de subsídios à exploração (IPDJ + COP), enquanto os patrocínios representam <b>9,5%</b> do total. O salto da linha de patrocinadores é real e relevante, mas ainda não altera a natureza grant-driven da federação.</p>
+  <div class="chips">
+    <div class="chip-row"><span class="chip-label sup">Suportado por</span><span class="who">Skeptic + Economist + dados do orçamento 2026 (IPDJ 1.246.500 €, COP 382.160 €, Patrocínios 192.000 €).</span></div>
+    <div class="chip-row"><span class="chip-label chal">Contestado por</span><span class="who">Nenhuma perspetiva contesta os números; a divergência está só na leitura estratégica.</span></div>
+    
+  </div>
+</div>
+<div class="finding">
+  <div class="finding-head">
+    <div class="finding-title">O grande vencedor do orçamento é o eixo olímpico e de alto rendimento.</div>
+    <div class="finding-rank">2</div>
+  </div>
+  <div class="rel-row">
+    <div class="rel high">Fiabilidade: Alta</div>
+    <div class="score"><b>9</b><span>/10</span></div>
+  </div>
+  <p>O Programa de Preparação Olímpica sobe de 349.572 € para <b>477.445 € (+36,6%)</b>, e o Projeto Olímpico passa para <b>432.700 €</b>. Somando Alto Rendimento e Seleções Nacionais, o sistema de performance absorve a maior parte da margem estratégica do crescimento.</p>
+  <div class="chips">
+    <div class="chip-row"><span class="chip-label sup">Suportado por</span><span class="who">Practitioner + Economist + orçamento local + documentação federativa de seleção nacional.</span></div>
+    <div class="chip-row"><span class="chip-label chal">Contestado por</span><span class="who">É compatível com a mensagem institucional de proximidade e inclusão, mas empurra essas áreas para um papel secundário em termos financeiros.</span></div>
+    
+  </div>
+</div>
+<div class="finding">
+  <div class="finding-head">
+    <div class="finding-title">A federação está a investir em legitimidade territorial e calendário, não apenas em medalhas.</div>
+    <div class="finding-rank">3</div>
+  </div>
+  <div class="rel-row">
+    <div class="rel medhigh">Fiabilidade: Média-alta</div>
+    <div class="score"><b>8</b><span>/10</span></div>
+  </div>
+  <p>O Quadro Competitivo Nacional quase duplica para <b>156.910 €</b>, surgem <b>36.000 €</b> para Campeonatos de Águas Interiores e a FPV anuncia um circuito em coorganização com autarquias e Estações Náuticas. Isto mostra uma tentativa de expandir presença territorial e densidade competitiva, sobretudo fora do litoral tradicional.</p>
+  <div class="chips">
+    <div class="chip-row"><span class="chip-label sup">Suportado por</span><span class="who">Practitioner + Historian + notícia oficial do Circuito de Águas Interiores 2026 + rubricas orçamentais.</span></div>
+    <div class="chip-row"><span class="chip-label chal">Contestado por</span><span class="who">Skeptic: sem métricas de retenção, coesão territorial e custo por participante, esta expansão pode gerar visibilidade sem prova de impacto estrutural.</span></div>
+    
+  </div>
+</div>
+<div class="finding">
+  <div class="finding-head">
+    <div class="finding-title">As rubricas de inclusão, feminino e desporto escolar existem, mas são materialmente pequenas.</div>
+    <div class="finding-rank">4</div>
+  </div>
+  <div class="rel-row">
+    <div class="rel medhigh">Fiabilidade: Média-alta</div>
+    <div class="score"><b>8</b><span>/10</span></div>
+  </div>
+  <p>Desporto para Pessoas com Deficiência (10.000 €), Desporto Feminino (3.000 €) e projeto juvenil escolar (2.500 €) somam <b>0,77%</b> do total de gastos. A mensagem política é inclusiva, mas o peso financeiro destas linhas continua residual quando comparado com o esforço olímpico e competitivo.</p>
+  <div class="chips">
+    <div class="chip-row"><span class="chip-label sup">Suportado por</span><span class="who">Academic + Skeptic + Mensagem do Presidente + orçamento local.</span></div>
+    <div class="chip-row"><span class="chip-label chal">Contestado por</span><span class="who">Practitioner: pequenas rubricas podem ter efeito multiplicador se bem desenhadas localmente; o orçamento por si só não mede esse efeito.</span></div>
+    
+  </div>
+</div>
+<div class="finding">
+  <div class="finding-head">
+    <div class="finding-title">O orçamento está equilibrado no papel, mas a execução depende de aprovações e de receita ainda por materializar.</div>
+    <div class="finding-rank">5</div>
+  </div>
+  <div class="rel-row">
+    <div class="rel medium">Fiabilidade: Média</div>
+    <div class="score"><b>7</b><span>/10</span></div>
+  </div>
+  <p>O resultado previsto é zero e o próprio documento admite dependência da aprovação das dotações do IPDJ e do COP. A maior aposta comercial está na subida dos patrocínios para <b>192.000 € (+78,6%)</b>; se essa monetização falhar, a pressão cairá primeiro sobre calendário, viagens e iniciativas menos protegidas politicamente.</p>
+  <div class="chips">
+    <div class="chip-row"><span class="chip-label sup">Suportado por</span><span class="who">Practitioner + Skeptic + notas do orçamento + homepage da FPV com patrocinadores e parceiros institucionais.</span></div>
+    <div class="chip-row"><span class="chip-label chal">Contestado por</span><span class="who">Economist: a subida de patrocínios pode ser credível se estiver ancorada em ativos de evento, mas o orçamento não publica a economia unitária desses ativos.</span></div>
+    
+  </div>
+</div>
+    <div class="contested">
+      <div class="tag">Sinal contestado &middot; monitorizar, não afirmar &middot; confiança 4/10</div>
+      <h4>“A FPV já está a reduzir de forma material a sua dependência do financiamento público.”</h4>
+      <p>O próprio orçamento diz que a direção pretende reduzir essa dependência, e a linha de patrocínios sobe fortemente. Mas em 2026 a estrutura de receita continua esmagadoramente pública; sem execução comprovada e margem líquida dos eventos, esta frase não deve ser afirmada como facto consumado.</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="connection">
+      <div class="section-num">03</div>
+      <h2><span class="bar"></span>A Ligação Oculta</h2>
+      <p>À primeira vista, o orçamento parece dividir-se entre duas missões: ganhar densidade olímpica e alargar a base territorial/social da modalidade.</p>
+      <p>A ligação escondida é que ambas as narrativas servem a mesma necessidade institucional: proteger legitimidade perante financiadores públicos, parceiros, clubes e assembleia geral. O alto rendimento traz argumento de performance; os eventos e a coesão territorial trazem argumento de serviço público e capilaridade.</p>
+      <p class="punch">A FPV não está apenas a financiar atividade; está a financiar uma coligação de legitimidades para sustentar o seu modelo de financiamento misto.</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="assume">
+      <h3>O pressuposto em que este briefing assenta (e a sexta perspetiva em falta)</h3>
+      <p>Este briefing assume que as rubricas são um bom proxy para prioridade estratégica real. Isso é razoável num orçamento aprovado, mas não substitui dados de execução, KPIs de retenção, custo por atleta, retorno líquido de eventos ou taxa real de captação de patrocinadores.</p>
+      <p>A sexta perspetiva em falta é a do <b>avaliador de impacto</b>: alguém com dados de execução e resultados por programa. Se essa lente mostrasse que pequenas verbas de inclusão ou feminino geram retorno social muito superior, parte desta leitura poderia inverter-se.</p>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-num">04</div>
+    <h2><span class="bar"></span>O Que Fazer de Forma Diferente</h2>
+    <p class="body-lg" style="color:var(--muted);">Para direção, assembleia geral, patrocinadores e clubes: movimentos concretos para reduzir risco narrativo e financeiro.</p>
+    <div class="action-item">
+  <div class="action-mark">01</div>
+  <div><span class="do">Separar explicitamente objetivos de medalhas, participação, inclusão e coesão territorial.</span><p>Sem uma teoria de mudança separada por eixo, o mesmo orçamento parece estar a prometer tudo ao mesmo tempo. Definir metas e KPIs por linha reduziria conflito entre leitura olímpica e leitura de base.</p></div>
+</div>
+    <div class="action-item">
+  <div class="action-mark">02</div>
+  <div><span class="do">Publicar uma ponte entre orçamento e execução trimestral.</span><p>O maior risco de credibilidade está na diferença entre rubrica aprovada e impacto real. Um quadro simples com execução, desvio e resultado por programa protegeria a federação perante clubes, patrocinadores e financiadores públicos.</p></div>
+</div>
+    <div class="action-item">
+  <div class="action-mark">03</div>
+  <div><span class="do">Tratar patrocínios como estratégia de margem, não apenas de receita bruta.</span><p>A subida para 192.000 € é relevante, mas o que interessa é a margem líquida após ativação de eventos, hospitalidade, produção e operação. Sem essa leitura, “diversificação” pode ser só mais carga operacional.</p></div>
+</div>
+    <div class="action-item">
+  <div class="action-mark">04</div>
+  <div><span class="do">Dar escala mínima verificável às linhas de inclusão e retenção.</span><p>Se a federação quer que a mensagem de vela adaptada, feminino e combate ao abandono seja lida como prioridade real, precisa de verbas ou indicadores que não pareçam meramente simbólicos.</p></div>
+</div>
+  </section>
+  <section class="section">
+    <div class="section-num">04b</div>
+    <h2><span class="bar"></span>O Que É Seguro Afirmar</h2>
+    <div class="oncam">
+      <div class="oncam-col safe">
+        <h4>✓ Seguro — verificado face à fonte primária</h4>
+        <ul>
+          <li>O orçamento 2026 da FPV cresce cerca de 10,3% face ao inicial de 2025 e fecha formalmente equilibrado.</li>
+          <li>O financiamento público continua dominante: IPDJ + COP representam cerca de 80,6% das receitas orçamentadas.</li>
+          <li>O bloco olímpico e de alto rendimento é a prioridade material mais clara do crescimento orçamental.</li>
+          <li>A federação está a investir em eventos e calendário territorial, incluindo Circuito de Águas Interiores e Volta a Portugal à Vela.</li>
+        </ul>
+      </div>
+      <div class="oncam-col caveat">
+        <h4>⚠ Dizer com ressalva</h4>
+        <ul>
+          <li>A subida dos patrocínios pode melhorar a autonomia, mas em 2026 ainda não altera estruturalmente a dependência pública.</li>
+          <li>As pequenas linhas de inclusão podem ter impacto relevante localmente, mas o orçamento sozinho não prova esse impacto.</li>
+          <li>Um orçamento equilibrado não significa execução sem stress; depende da aprovação de dotações e da concretização da receita prevista.</li>
+        </ul>
+      </div>
+      <div class="oncam-col avoid">
+        <h4>✕ Não afirmar</h4>
+        <ul>
+          <li>“A FPV já se tornou financeiramente autónoma do Estado.”</li>
+          <li>“O PAO 2026 prova que a participação feminina, adaptada ou escolar vai crescer.”</li>
+          <li>“A estratégia de eventos próprios já demonstrou retorno líquido suficiente para substituir subsídios.”</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-num">05</div>
+    <h2><span class="bar"></span>A Pergunta de Fronteira</h2>
+    <div class="frontier">
+      <div class="q">Que resultados concretos produz cada euro adicional colocado no eixo olímpico face a cada euro colocado em retenção, inclusão e expansão territorial?</div>
+      <p>Esta é a pergunta que resolveria a tensão central do PAO 2026. Sem uma resposta comparável em custo-eficácia e impacto institucional, a federação fica presa entre uma lógica de performance e uma lógica de base, sem saber qual delas realmente sustenta melhor o seu futuro.</p>
+    </div>
+  </section>
+  <div class="refs">
+    <h3>Base de evidência &middot; estado da verificação</h3>
+    <ul>
+      <li><span class="vstat ok">Confirmado</span> Orçamento 2026 da FPV: total de gastos e rendimentos de 2.021.159 €, crescimento de 10,3% face a 2025 e resultado orçamentado de zero. <a href="file:///Users/mac/Downloads/LAB/VELA/RELATORIO/FEDERACAO/Orcamento_FPV_2026.md">Orcamento_FPV_2026.md</a></li>
+<li><span class="vstat ok">Confirmado</span> Folhas “GASTOS” e “RENDIMENTOS” confirmam as variações das rubricas-chave: Preparação Olímpica 477.445 €, Quadro Competitivo Nacional 156.910 €, Patrocínios 192.000 €, IPDJ 1.246.500 €, COP 382.160 €. <a href="file:///Users/mac/Downloads/LAB/VELA/RELATORIO/FEDERACAO/Orcamento_FPV_2026.xlsx">Orcamento_FPV_2026.xlsx</a></li>
+<li><span class="vstat ok">Confirmado</span> O Centro de Documentação da FPV lista o Plano de Atividades e Orçamento 2026, a ata da assembleia geral, o parecer do Conselho Fiscal e múltiplos contratos-programa, o que reforça a formalização documental do ciclo orçamental. <a href="https://fpvela.pt/centro-de-documentacao/">fpvela.pt/centro-de-documentacao</a></li>
+<li><span class="vstat ok">Confirmado</span> Na Mensagem do Presidente, a federação assume objetivos de proximidade, captação de novos velejadores, redução do abandono, promoção da vela adaptada e reforma administrativa/digital até um plano estratégico 2032. <a href="https://fpvela.pt/federacao-portuguesa-de-vela/mensagem-do-presidente/">Mensagem do Presidente</a></li>
+<li><span class="vstat ok">Confirmado</span> A notícia oficial do Circuito de Águas Interiores 2026 descreve coorganização com autarquias e Estações Náuticas para reforçar a coesão territorial e as estruturas técnicas no interior. <a href="https://fpvela.pt/noticias/circuito-de-aguas-interiores-2026/">Circuito de Águas Interiores 2026</a></li>
+<li><span class="vstat ok">Confirmado</span> A notícia oficial da Volta a Portugal à Vela 2026 posiciona o evento como um dos momentos mais relevantes do calendário nacional e como ativo de comunidade, tradição marítima e visibilidade. <a href="https://fpvela.pt/noticias/volta-a-portugal-a-vela-2026/">Volta a Portugal à Vela 2026</a></li>
+<li><span class="vstat part">Corrigido</span> A homepage da FPV confirma patrocinadores, parcerias e logos institucionais (IPDJ, NOC-POR, World Sailing), apoiando a leitura de ecossistema misto público-privado. <b>Correção aplicada:</b> a soma das componentes de rendimentos no ficheiro de trabalho dá 2.021.160 €, enquanto o total impresso e assumido no orçamento é 2.021.159 €; a diferença foi tratada como arredondamento/documentação, não como erro material. <a href="https://fpvela.pt/">Homepage FPV</a></li>
+    </ul>
+  </div>
+  <div class="footer">Storm Research v2 &middot; 7/7 referências verificadas, 2026-06-29 &middot; 0 fabricadas, 1 corrigida, 0 despromovidas &middot; Fiabilidade = qualidade da evidência, não confiança do autor</div>
+</div>
+</body>
+</html>

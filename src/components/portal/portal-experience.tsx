@@ -69,6 +69,7 @@ const navItems: Array<{
   { href: "/#tracking", label: "Tracking", mode: "tracking", icon: Radio },
   { href: "/#noticias", label: "Notícias", mode: "noticias", icon: Newspaper },
   { href: "/#media", label: "Media", mode: "media", icon: ImageIcon },
+  { href: "/#report", label: "Report", mode: "report", icon: FileText },
   { href: "/#comite", label: "Comité", mode: "comite", icon: ShieldCheck },
 ];
 
@@ -80,10 +81,14 @@ const sectionRouteHrefs: Record<string, string> = {
   "/tracking": "/#tracking",
   "/noticias": "/#noticias",
   "/media": "/#media",
+  "/report": "/#report",
   "/comite": "/#comite",
 };
 
 const courseDiagramUrl = "/percursos/barlavento-sotavento.png";
+const reportHtmlUrl = "/report/fpv-pao-2026-briefing.html";
+const reportPdfUrl = "/report/Plano-de-Atividades-e-Orcamento-2026-FPV.pdf";
+const reportSheetUrl = "/report/Orcamento_FPV_2026.xlsx";
 
 function useLocalFacebookMedia() {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -185,6 +190,7 @@ function sectionList(mode: PortalMode): PortalMode[] {
       "resultados",
       "noticias",
       "media",
+      "report",
       "comite",
     ];
   }
@@ -413,6 +419,8 @@ function PortalSection({
           facebookUrl={data.settings.facebookPageUrl}
         />
       );
+    case "report":
+      return <ReportSection immersive={pageMode === "report"} />;
     case "comite":
       return <CommitteeSection data={data} />;
     default:
@@ -855,6 +863,115 @@ function MediaSection({
         media={displayMedia}
       />
     </SectionShell>
+  );
+}
+
+function ReportSection({ immersive }: { immersive: boolean }) {
+  return (
+    <SectionShell id="report" eyebrow="Report" title="FPV PAO 2026" wide>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">
+                Documento HTML
+              </p>
+              <p className="text-sm font-bold text-slate-950">
+                Federação Portuguesa de Vela: leitura crítica do PAO 2026
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={reportHtmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-normal text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+              >
+                <ExternalLink className="size-4" />
+                Abrir
+              </a>
+              <a
+                href={reportHtmlUrl}
+                download
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-950 px-3 text-xs font-bold uppercase tracking-normal text-white transition hover:bg-sky-800"
+              >
+                <Download className="size-4" />
+                HTML
+              </a>
+            </div>
+          </div>
+          <iframe
+            src={reportHtmlUrl}
+            title="Report FPV PAO 2026"
+            className={cn(
+              "block w-full bg-white",
+              immersive ? "h-[calc(100svh-17rem)] min-h-[760px]" : "h-[74vh] min-h-[680px]",
+            )}
+            loading="lazy"
+          />
+        </div>
+
+        <aside className="grid content-start gap-3">
+          <DocumentCard
+            title="Briefing HTML"
+            description="Versão navegável integrada no portal."
+            href={reportHtmlUrl}
+            action="Abrir"
+          />
+          <DocumentCard
+            title="Plano de Atividades e Orçamento 2026"
+            description="PDF original, 8.1 MB."
+            href={reportPdfUrl}
+            action="PDF"
+          />
+          <DocumentCard
+            title="Orçamento FPV 2026"
+            description="Folha Excel de suporte, 20 KB."
+            href={reportSheetUrl}
+            action="XLSX"
+            download
+          />
+        </aside>
+      </div>
+    </SectionShell>
+  );
+}
+
+function DocumentCard({
+  title,
+  description,
+  href,
+  action,
+  download = false,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  action: string;
+  download?: boolean;
+}) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-800">
+          <FileText className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-black text-slate-950">{title}</h3>
+          <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>
+        </div>
+      </div>
+      <a
+        href={href}
+        target={download ? undefined : "_blank"}
+        rel={download ? undefined : "noreferrer"}
+        download={download || undefined}
+        className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold uppercase tracking-normal text-slate-700 transition hover:border-sky-300 hover:text-sky-800"
+      >
+        {download ? <Download className="size-4" /> : <ExternalLink className="size-4" />}
+        {action}
+      </a>
+    </article>
   );
 }
 
